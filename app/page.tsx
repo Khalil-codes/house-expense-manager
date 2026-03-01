@@ -1,10 +1,7 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import {
   PieChart,
   BarChart,
@@ -12,149 +9,105 @@ import {
   Building,
   Landmark,
   Download,
-  Upload,
-  Settings,
+  Sun,
+  Moon,
+  LogOut,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 
 import Dashboard from "@/components/dashboard";
 import LoanTracker from "@/components/loan-tracker";
 import ConstructionExpenses from "@/components/construction-expenses";
 import PropertyExpenses from "@/components/property-expenses";
 import MonthlyAnalytics from "@/components/monthly-analytics";
-import { useExpenseData } from "@/hooks/use-expense-data";
+import { useExpenseService } from "@/hooks/use-expense-service";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
+const TABS = [
+  { value: "dashboard", label: "Home", icon: PieChart },
+  { value: "analytics", label: "Analytics", icon: BarChart },
+  { value: "loan", label: "Loans", icon: Landmark },
+  { value: "construction", label: "Build", icon: Building },
+  { value: "property", label: "Property", icon: Home },
+] as const;
+
 export default function HouseExpenseTracker() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isLoaded, setIsLoaded] = useState(false);
-  const { exportData, importData } = useExpenseData();
+  const { exportData } = useExpenseService();
+  const { resolvedTheme, setTheme } = useTheme();
+  const router = useRouter();
 
   useEffect(() => {
-    // Initialize localStorage if needed
-    if (!localStorage.getItem("houseExpenseData")) {
-      localStorage.setItem(
-        "houseExpenseData",
-        JSON.stringify({
-          construction: [],
-          property: [],
-          loan: {
-            amount: 0,
-            interest: 0,
-            tenure: 0,
-            payments: [],
-          },
-        })
-      );
-    }
-
-    // Register service worker for PWA
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").then(
-          (registration) => {
-            console.log(
-              "ServiceWorker registration successful with scope: ",
-              registration.scope
-            );
-          },
-          (err) => {
-            console.log("ServiceWorker registration failed: ", err);
-          }
-        );
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
       });
     }
-
     setIsLoaded(true);
   }, []);
 
-  const handleExport = () => {
-    const jsonData = exportData();
+  const handleExport = async () => {
+    const jsonData = await exportData();
     const blob = new Blob([jsonData], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `house-expenses-${
-      new Date().toISOString().split("T")[0]
-    }.json`;
+    a.download = `house-expenses-${new Date().toISOString().split("T")[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
-    toast.success("Data exported successfully", {
-      description: "Your expense data has been exported to a JSON file.",
-    });
+    toast.success("Data exported successfully");
   };
 
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const jsonData = e.target?.result as string;
-        importData(jsonData);
-        toast.success("Data imported successfully", {
-          description:
-            "Your expense data has been imported from the JSON file.",
-        });
-      } catch (error) {
-        toast.error("Import failed", {
-          description:
-            "There was an error importing your data. Please check the file format.",
-        });
-      }
-    };
-    reader.readAsText(file);
-
-    // Reset the input
-    event.target.value = "";
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
   };
 
   if (!isLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="w-full max-w-md mx-auto p-4">
-          <h2 className="text-xl font-semibold mb-4 text-center">
-            Loading House Expense Tracker
-          </h2>
-          <Progress value={40} className="h-2 mb-2" />
-          <p className="text-sm text-center text-muted-foreground">
-            Initializing application...
-          </p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6">
-      <div className="flex flex-col space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              House Expense Tracker
-            </h1>
-            <p className="text-muted-foreground">
-              Track and manage all expenses related to your house project
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
+    <div className="min-h-screen pb-16 bg-background">
+      {/* Top header */}
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          <h1 className="text-base font-bold tracking-tight">Expense Tracker</h1>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Options
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -162,79 +115,48 @@ export default function HouseExpenseTracker() {
                   <Download className="h-4 w-4 mr-2" />
                   Export Data
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    document.getElementById("import-file")?.click()
-                  }
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import Data
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
                 </DropdownMenuItem>
-                <input
-                  id="import-file"
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={handleImport}
-                />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
+      </header>
 
-        <Tabs
-          defaultValue="dashboard"
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="space-y-4"
-        >
-          <TabsList className="grid grid-cols-5 md:w-[600px]">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <PieChart className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart className="h-4 w-4" />
-              <span className="hidden sm:inline">Analytics</span>
-            </TabsTrigger>
-            <TabsTrigger value="loan" className="flex items-center gap-2">
-              <Landmark className="h-4 w-4" />
-              <span className="hidden sm:inline">Loan</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="construction"
-              className="flex items-center gap-2"
-            >
-              <Building className="h-4 w-4" />
-              <span className="hidden sm:inline">Construction</span>
-            </TabsTrigger>
-            <TabsTrigger value="property" className="flex items-center gap-2">
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Property</span>
-            </TabsTrigger>
-          </TabsList>
+      {/* Page content */}
+      <main className="px-3 py-4">
+        {activeTab === "dashboard" && <Dashboard />}
+        {activeTab === "analytics" && <MonthlyAnalytics />}
+        {activeTab === "loan" && <LoanTracker />}
+        {activeTab === "construction" && <ConstructionExpenses />}
+        {activeTab === "property" && <PropertyExpenses />}
+      </main>
 
-          <TabsContent value="dashboard" className="space-y-4">
-            <Dashboard />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-4">
-            <MonthlyAnalytics />
-          </TabsContent>
-
-          <TabsContent value="loan" className="space-y-4">
-            <LoanTracker />
-          </TabsContent>
-
-          <TabsContent value="construction" className="space-y-4">
-            <ConstructionExpenses />
-          </TabsContent>
-
-          <TabsContent value="property" className="space-y-4">
-            <PropertyExpenses />
-          </TabsContent>
-        </Tabs>
-      </div>
+      {/* Bottom navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t safe-area-bottom">
+        <div className="flex items-center justify-around h-14">
+          {TABS.map(({ value, label, icon: Icon }) => {
+            const isActive = activeTab === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setActiveTab(value)}
+                className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-colors ${
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${isActive ? "stroke-[2.5]" : ""}`} />
+                <span className="text-[10px] font-medium">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

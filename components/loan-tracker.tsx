@@ -1,464 +1,496 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useExpenseData } from "@/hooks/use-expense-data"
-import { Progress } from "@/components/ui/progress"
-import { Edit, RefreshCw } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState, useMemo } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  useExpenseService,
+  type LoanData,
+} from "@/hooks/use-expense-service";
+import { Progress } from "@/components/ui/progress";
+import {
+  Plus,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LoanForm } from "@/components/loan-form";
+import { PrepaymentForm } from "@/components/prepayment-form";
+import type { LoanFormValues, PrepaymentFormValues } from "@/lib/validations";
+
+const PAYMENTS_PER_PAGE = 12;
 
 export default function LoanTracker() {
-  const { data, updateLoan, updateLoanPayment } = useExpenseData()
+  const {
+    loans,
+    isLoading,
+    addLoan,
+    deleteLoan,
+    togglePayment,
+    addPrepayment,
+  } = useExpenseService();
 
-  const [loanAmount, setLoanAmount] = useState(data.loan.amount.toString())
-  const [interestRate, setInterestRate] = useState(data.loan.interest.toString())
-  const [loanTenure, setLoanTenure] = useState(data.loan.tenure.toString())
-  const [startDate, setStartDate] = useState(
-    data.loan.startDate
-      ? new Date(data.loan.startDate).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
-  )
+  const [selectedLoanId, setSelectedLoanId] = useState<string>("");
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [deletingLoan, setDeletingLoan] = useState(false);
+  const [togglingPaymentId, setTogglingPaymentId] = useState<number | null>(null);
 
-  const [showLoanForm, setShowLoanForm] = useState(!data.loan.amount)
-
-  const [prepaymentAmount, setPrepaymentAmount] = useState("")
-  const [prepaymentDate, setPrepaymentDate] = useState(new Date().toISOString().split("T")[0])
-
-  const [amountPaid, setAmountPaid] = useState(0)
-  const [interestPaid, setInterestPaid] = useState(0)
-  const [principalPaid, setPrincipalPaid] = useState(0)
-  const [remainingBalance, setRemainingBalance] = useState(0)
-
-  // Calculate loan details
-  useEffect(() => {
-    if (data.loan.payments.length > 0) {
-      const totalPaid = data.loan.payments.reduce((sum, payment) => sum + (payment.paid ? payment.amount : 0), 0)
-
-      const totalInterestPaid = data.loan.payments.reduce(
-        (sum, payment) => sum + (payment.paid ? payment.interest : 0),
-        0,
-      )
-
-      const totalPrincipalPaid = data.loan.payments.reduce(
-        (sum, payment) => sum + (payment.paid ? payment.amount - payment.interest : 0),
-        0,
-      )
-
-      setAmountPaid(totalPaid)
-      setInterestPaid(totalInterestPaid)
-      setPrincipalPaid(totalPrincipalPaid)
-      setRemainingBalance(data.loan.amount - totalPrincipalPaid)
-    } else {
-      setAmountPaid(0)
-      setInterestPaid(0)
-      setPrincipalPaid(0)
-      setRemainingBalance(Number.parseFloat(loanAmount) || 0)
+  const selectedLoan: LoanData | undefined = useMemo(() => {
+    if (selectedLoanId) {
+      return loans.find((l) => l.id === selectedLoanId);
     }
-  }, [data.loan])
+    return loans[0];
+  }, [loans, selectedLoanId]);
 
-  const calculateLoan = () => {
-    const amount = Number.parseFloat(loanAmount) || 0
-    const interest = Number.parseFloat(interestRate) || 0
-    const tenure = Number.parseInt(loanTenure) || 0
-
-    if (amount <= 0 || interest <= 0 || tenure <= 0) {
-      alert("Please enter valid loan details")
-      return
+  const loanStats = useMemo(() => {
+    if (!selectedLoan || selectedLoan.payments.length === 0) {
+      return { amountPaid: 0, interestPaid: 0, principalPaid: 0, remainingBalance: 0 };
     }
 
-    // Calculate monthly payment
-    const monthlyInterest = interest / 100 / 12
-    const totalPayments = tenure * 12
+    const amountPaid = selectedLoan.payments.reduce(
+      (sum, p) => sum + (p.paid ? p.amount : 0), 0
+    );
+    const interestPaid = selectedLoan.payments.reduce(
+      (sum, p) => sum + (p.paid ? p.interest : 0), 0
+    );
+    const principalPaid = selectedLoan.payments.reduce(
+      (sum, p) => sum + (p.paid ? p.principal : 0), 0
+    );
+    const remainingBalance = selectedLoan.amount - principalPaid;
 
-    const monthlyPayment =
-      (amount * monthlyInterest * Math.pow(1 + monthlyInterest, totalPayments)) /
-      (Math.pow(1 + monthlyInterest, totalPayments) - 1)
+    return { amountPaid, interestPaid, principalPaid, remainingBalance };
+  }, [selectedLoan]);
 
-    // Generate amortization schedule
-    let balance = amount
-    const payments = []
-    const loanStartDate = new Date(startDate)
+  const paginatedPayments = useMemo(() => {
+    if (!selectedLoan) return { payments: [], totalPages: 0, smartStartPage: 0 };
 
-    for (let i = 1; i <= totalPayments; i++) {
-      const interestPayment = balance * monthlyInterest
-      const principalPayment = monthlyPayment - interestPayment
-      balance -= principalPayment
+    const total = selectedLoan.payments.length;
+    const totalPages = Math.ceil(total / PAYMENTS_PER_PAGE);
 
-      const paymentDate = new Date(loanStartDate)
-      paymentDate.setMonth(loanStartDate.getMonth() + i - 1)
+    const nextUnpaidIdx = selectedLoan.payments.findIndex((p) => !p.paid);
+    const smartStartPage =
+      nextUnpaidIdx >= 0
+        ? Math.floor(nextUnpaidIdx / PAYMENTS_PER_PAGE)
+        : 0;
 
-      payments.push({
-        month: i,
-        amount: monthlyPayment,
-        interest: interestPayment,
-        principal: principalPayment,
-        balance: balance > 0 ? balance : 0,
-        date: paymentDate,
-        paid: false,
-      })
+    const start = currentPage * PAYMENTS_PER_PAGE;
+    const payments = selectedLoan.payments.slice(start, start + PAYMENTS_PER_PAGE);
+
+    return { payments, totalPages, smartStartPage };
+  }, [selectedLoan, currentPage]);
+
+  const onCreateLoan = async (values: LoanFormValues) => {
+    await addLoan({
+      id: crypto.randomUUID(),
+      name: values.name,
+      amount: values.amount,
+      interest: values.interest,
+      tenure: values.tenure,
+      start_date: values.start_date,
+    });
+    setShowLoanForm(false);
+    setCurrentPage(0);
+  };
+
+  const handleDeleteLoan = async (loanId: string) => {
+    if (!confirm("Are you sure you want to delete this loan?")) return;
+    setDeletingLoan(true);
+    try {
+      await deleteLoan(loanId);
+      setSelectedLoanId("");
+    } finally {
+      setDeletingLoan(false);
     }
+  };
 
-    // Update loan data
-    updateLoan({
-      amount,
-      interest,
-      tenure,
-      startDate: loanStartDate,
-      payments,
-      prepayments: [],
-    })
-
-    setShowLoanForm(false)
-  }
-
-  const togglePaymentStatus = (index: number) => {
-    const newStatus = !data.loan.payments[index].paid
-    updateLoanPayment(index, newStatus)
-  }
-
-  const handlePrepayment = () => {
-    const prepayAmount = Number.parseFloat(prepaymentAmount) || 0
-    if (prepayAmount <= 0) {
-      alert("Please enter a valid prepayment amount")
-      return
+  const handleTogglePayment = async (paymentId: number, currentPaid: boolean) => {
+    if (!selectedLoan) return;
+    setTogglingPaymentId(paymentId);
+    try {
+      await togglePayment({ loanId: selectedLoan.id, paymentId, paid: !currentPaid });
+    } finally {
+      setTogglingPaymentId(null);
     }
+  };
 
-    if (prepayAmount > remainingBalance) {
-      alert("Prepayment amount cannot exceed the remaining balance")
-      return
-    }
+  const onPrepay = async (values: PrepaymentFormValues) => {
+    if (!selectedLoan) return;
+    await addPrepayment({ loanId: selectedLoan.id, amount: values.amount, date: values.date });
+    setCurrentPage(0);
+  };
 
-    // Find the first unpaid payment after the prepayment date
-    const prepayDate = new Date(prepaymentDate)
-    const firstUnpaidIndex = data.loan.payments.findIndex(
-      (payment) => !payment.paid && new Date(payment.date) >= prepayDate,
-    )
+  const isOverdue = (paymentDate: string, paid: boolean) => {
+    if (paid) return false;
+    return new Date(paymentDate) < new Date();
+  };
 
-    if (firstUnpaidIndex === -1) {
-      alert("No future payments found after the selected date")
-      return
-    }
-
-    // Calculate new loan schedule
-    const monthlyInterest = data.loan.interest / 100 / 12
-    const remainingMonths = data.loan.payments.length - firstUnpaidIndex
-
-    // New balance after prepayment
-    const newBalance = remainingBalance - prepayAmount
-
-    // Calculate new monthly payment
-    const newMonthlyPayment =
-      (newBalance * monthlyInterest * Math.pow(1 + monthlyInterest, remainingMonths)) /
-      (Math.pow(1 + monthlyInterest, remainingMonths) - 1)
-
-    // Generate new payment schedule
-    let balance = newBalance
-    const newPayments = [...data.loan.payments.slice(0, firstUnpaidIndex)]
-
-    for (let i = 0; i < remainingMonths; i++) {
-      const interestPayment = balance * monthlyInterest
-      const principalPayment = newMonthlyPayment - interestPayment
-      balance -= principalPayment
-
-      const paymentDate = new Date(data.loan.payments[firstUnpaidIndex + i].date)
-
-      newPayments.push({
-        month: firstUnpaidIndex + i + 1,
-        amount: newMonthlyPayment,
-        interest: interestPayment,
-        principal: principalPayment,
-        balance: balance > 0 ? balance : 0,
-        date: paymentDate,
-        paid: false,
-      })
-    }
-
-    // Add prepayment record
-    const prepayments = data.loan.prepayments || []
-    prepayments.push({
-      date: prepayDate,
-      amount: prepayAmount,
-    })
-
-    // Update loan data
-    updateLoan({
-      ...data.loan,
-      payments: newPayments,
-      prepayments,
-    })
-
-    // Reset prepayment form
-    setPrepaymentAmount("")
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p>Loading loan data...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Amount Paid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ₹{amountPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-            <Progress value={data.loan.amount ? (amountPaid / data.loan.amount) * 100 : 0} className="h-2 mt-2" />
-          </CardContent>
-        </Card>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {loans.length > 1 && (
+            <Select
+              value={selectedLoan?.id || ""}
+              onValueChange={(v) => {
+                setSelectedLoanId(v);
+                setCurrentPage(0);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Select loan" />
+              </SelectTrigger>
+              <SelectContent>
+                {loans.map((loan) => (
+                  <SelectItem key={loan.id} value={loan.id}>
+                    {loan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Interest Paid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ₹{interestPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {amountPaid ? ((interestPaid / amountPaid) * 100).toFixed(1) : 0}% of total paid
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Principal Paid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ₹{principalPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.loan.amount ? ((principalPaid / data.loan.amount) * 100).toFixed(1) : 0}% of loan amount
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Remaining Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ₹{remainingBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.loan.amount ? ((remainingBalance / data.loan.amount) * 100).toFixed(1) : 0}% of loan amount
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {data.loan.amount > 0 && !showLoanForm && (
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-medium">Loan Details</h3>
-            <p className="text-sm text-muted-foreground">
-              ₹{data.loan.amount.toLocaleString()} at {data.loan.interest}% for {data.loan.tenure} years
-              {data.loan.startDate && ` (starting ${new Date(data.loan.startDate).toLocaleDateString()})`}
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => setShowLoanForm(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Loan
+          <Button
+            size="sm"
+            onClick={() => setShowLoanForm(true)}
+            className="ml-auto"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Loan
           </Button>
         </div>
-      )}
+      </div>
 
       {showLoanForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-            <CardDescription>Enter your loan information to generate a payment plan</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="loan-amount">Loan Amount (₹)</Label>
-                <Input
-                  id="loan-amount"
-                  type="number"
-                  value={loanAmount}
-                  onChange={(e) => setLoanAmount(e.target.value)}
-                  placeholder="e.g. 2500000"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="interest-rate">Interest Rate (%)</Label>
-                <Input
-                  id="interest-rate"
-                  type="number"
-                  value={interestRate}
-                  onChange={(e) => setInterestRate(e.target.value)}
-                  placeholder="e.g. 8.5"
-                  step="0.01"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="loan-tenure">Loan Tenure (years)</Label>
-                <Input
-                  id="loan-tenure"
-                  type="number"
-                  value={loanTenure}
-                  onChange={(e) => setLoanTenure(e.target.value)}
-                  placeholder="e.g. 20"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="start-date">Start Date</Label>
-                <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button variant="outline" onClick={() => setShowLoanForm(false)} disabled={!data.loan.amount}>
-              Cancel
-            </Button>
-            <Button onClick={calculateLoan}>Calculate Loan</Button>
-          </CardFooter>
-        </Card>
+        <LoanForm
+          onSubmit={onCreateLoan}
+          onCancel={() => setShowLoanForm(false)}
+        />
       )}
 
-      {data.loan.amount > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Loan Management</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="schedule">
-              <TabsList className="mb-4">
-                <TabsTrigger value="schedule">Payment Schedule</TabsTrigger>
-                <TabsTrigger value="prepayment">Make Prepayment</TabsTrigger>
-                {data.loan.prepayments && data.loan.prepayments.length > 0 && (
-                  <TabsTrigger value="history">Prepayment History</TabsTrigger>
-                )}
-              </TabsList>
-
-              <TabsContent value="schedule">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Month</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead className="hidden md:table-cell">Principal</TableHead>
-                        <TableHead className="hidden md:table-cell">Interest</TableHead>
-                        <TableHead className="hidden md:table-cell">Remaining</TableHead>
-                        <TableHead>Paid</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.loan.payments.slice(0, 12).map((payment, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{payment.month}</TableCell>
-                          <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            ₹{payment.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            ₹{payment.principal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            ₹{payment.interest.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            ₹{payment.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell>
-                            <Checkbox
-                              checked={payment.paid}
-                              onCheckedChange={() => togglePaymentStatus(index)}
-                              className="data-[state=checked]:bg-green-500"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+      {selectedLoan && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
+                  Amount Paid
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-lg font-bold">
+                  ₹{loanStats.amountPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
-                {data.loan.payments.length > 12 && (
-                  <div className="mt-2 text-center text-sm text-muted-foreground">
-                    Showing first 12 months of {data.loan.payments.length} total payments
-                  </div>
-                )}
-              </TabsContent>
+                <Progress
+                  value={selectedLoan.amount ? (loanStats.amountPaid / (selectedLoan.amount * (1 + selectedLoan.interest / 100 * selectedLoan.tenure))) * 100 : 0}
+                  className="h-1.5 mt-1"
+                />
+              </CardContent>
+            </Card>
 
-              <TabsContent value="prepayment">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="prepayment-amount">Prepayment Amount (₹)</Label>
-                    <Input
-                      id="prepayment-amount"
-                      type="number"
-                      value={prepaymentAmount}
-                      onChange={(e) => setPrepaymentAmount(e.target.value)}
-                      placeholder="e.g. 100000"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="prepayment-date">Prepayment Date</Label>
-                    <Input
-                      id="prepayment-date"
-                      type="date"
-                      value={prepaymentDate}
-                      onChange={(e) => setPrepaymentDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex items-end">
-                    <Button onClick={handlePrepayment} className="mb-2">
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Apply Prepayment
-                    </Button>
-                  </div>
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
+                  Remaining
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-lg font-bold">
+                  ₹{loanStats.remainingBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {selectedLoan.amount
+                    ? ((loanStats.remainingBalance / selectedLoan.amount) * 100).toFixed(1)
+                    : 0}
+                  % of principal
+                </p>
+              </CardContent>
+            </Card>
 
-                <div className="mt-4 p-4 bg-muted rounded-md">
-                  <h4 className="font-medium mb-2">How Prepayment Works</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Making a prepayment will reduce your loan principal and recalculate your remaining payments. This
-                    can help you save on interest and potentially reduce your loan term.
-                  </p>
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
+                  Interest Paid
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-lg font-bold">
+                  ₹{loanStats.interestPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
-              </TabsContent>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {loanStats.amountPaid
+                    ? ((loanStats.interestPaid / loanStats.amountPaid) * 100).toFixed(1)
+                    : 0}
+                  % of paid
+                </p>
+              </CardContent>
+            </Card>
 
-              {data.loan.prepayments && data.loan.prepayments.length > 0 && (
-                <TabsContent value="history">
-                  <div className="rounded-md border">
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
+                  Principal Paid
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-lg font-bold">
+                  ₹{loanStats.principalPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {selectedLoan.amount
+                    ? ((loanStats.principalPaid / selectedLoan.amount) * 100).toFixed(1)
+                    : 0}
+                  % of loan
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold">{selectedLoan.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                ₹{selectedLoan.amount.toLocaleString()} at {selectedLoan.interest}% for{" "}
+                {selectedLoan.tenure}yr
+                {selectedLoan.start_date &&
+                  ` from ${new Date(selectedLoan.start_date).toLocaleDateString()}`}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive h-8 w-8"
+              disabled={deletingLoan}
+              onClick={() => handleDeleteLoan(selectedLoan.id)}
+            >
+              {deletingLoan ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="pt-4 px-3">
+              <Tabs defaultValue="schedule">
+                <TabsList className="w-full grid grid-cols-3 mb-3">
+                  <TabsTrigger value="schedule" className="text-xs">
+                    Schedule
+                  </TabsTrigger>
+                  <TabsTrigger value="prepayment" className="text-xs">
+                    Prepay
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="text-xs">
+                    History
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="schedule" className="mt-0">
+                  <div className="overflow-x-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-10">#</TableHead>
                           <TableHead>Date</TableHead>
-                          <TableHead>Amount</TableHead>
+                          <TableHead>EMI</TableHead>
+                          <TableHead className="hidden sm:table-cell">Principal</TableHead>
+                          <TableHead className="hidden sm:table-cell">Interest</TableHead>
+                          <TableHead className="hidden sm:table-cell">Balance</TableHead>
+                          <TableHead className="w-10">Paid</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data.loan.prepayments.map((prepayment, index) => (
-                          <TableRow key={index}>
-                            <TableCell>{new Date(prepayment.date).toLocaleDateString()}</TableCell>
-                            <TableCell>₹{prepayment.amount.toLocaleString()}</TableCell>
+                        {paginatedPayments.payments.map((payment) => (
+                          <TableRow
+                            key={payment.id}
+                            className={
+                              isOverdue(payment.date, payment.paid)
+                                ? "bg-destructive/10"
+                                : payment.paid
+                                ? "bg-green-500/5"
+                                : ""
+                            }
+                          >
+                            <TableCell className="text-xs py-2">
+                              {isOverdue(payment.date, payment.paid) && (
+                                <AlertCircle className="h-3 w-3 text-destructive inline mr-0.5" />
+                              )}
+                              {payment.month}
+                            </TableCell>
+                            <TableCell className="text-xs py-2">
+                              {new Date(payment.date).toLocaleDateString("en-IN", {
+                                month: "short",
+                                year: "2-digit",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-xs py-2">
+                              ₹{payment.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-xs py-2">
+                              ₹{payment.principal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-xs py-2">
+                              ₹{payment.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-xs py-2">
+                              ₹{payment.balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </TableCell>
+                            <TableCell className="py-2">
+                              {togglingPaymentId === payment.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Checkbox
+                                  checked={payment.paid}
+                                  disabled={togglingPaymentId !== null}
+                                  onCheckedChange={() =>
+                                    handleTogglePayment(payment.id, payment.paid)
+                                  }
+                                  className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                                />
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
+
+                  {paginatedPayments.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage === 0}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          Page {currentPage + 1} of {paginatedPayments.totalPages}
+                        </span>
+                        <Select
+                          value={currentPage.toString()}
+                          onValueChange={(v) => setCurrentPage(parseInt(v))}
+                        >
+                          <SelectTrigger className="h-7 w-[90px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: paginatedPayments.totalPages }, (_, i) => (
+                              <SelectItem key={i} value={i.toString()}>
+                                Year {Math.floor((i * PAYMENTS_PER_PAGE) / 12) + 1}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= paginatedPayments.totalPages - 1}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </TabsContent>
-              )}
-            </Tabs>
+
+                <TabsContent value="prepayment" className="mt-0 space-y-3">
+                  <PrepaymentForm
+                    remainingBalance={loanStats.remainingBalance}
+                    onSubmit={onPrepay}
+                  />
+                  <div className="p-3 bg-muted rounded-md">
+                    <p className="text-xs text-muted-foreground">
+                      Making a prepayment reduces your loan principal and recalculates
+                      remaining payments, helping you save on interest.
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="history" className="mt-0">
+                  {selectedLoan.prepayments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No prepayments made yet
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedLoan.prepayments.map((prep) => (
+                            <TableRow key={prep.id}>
+                              <TableCell className="text-sm">
+                                {new Date(prep.date).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                ₹{prep.amount.toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {loans.length === 0 && !showLoanForm && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-muted-foreground mb-4">No loans added yet</p>
+            <Button onClick={() => setShowLoanForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Loan
+            </Button>
           </CardContent>
         </Card>
       )}
     </div>
-  )
+  );
 }
-
