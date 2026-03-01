@@ -87,7 +87,7 @@ export default function LoanTracker() {
   }, [selectedLoan]);
 
   const paginatedPayments = useMemo(() => {
-    if (!selectedLoan) return { payments: [], totalPages: 0, smartStartPage: 0 };
+    if (!selectedLoan) return { payments: [], totalPages: 0, smartStartPage: 0, pageYearLabel: "" };
 
     const total = selectedLoan.payments.length;
     const totalPages = Math.ceil(total / PAYMENTS_PER_PAGE);
@@ -101,7 +101,11 @@ export default function LoanTracker() {
     const start = currentPage * PAYMENTS_PER_PAGE;
     const payments = selectedLoan.payments.slice(start, start + PAYMENTS_PER_PAGE);
 
-    return { payments, totalPages, smartStartPage };
+    const firstYear = payments.length > 0 ? new Date(payments[0].date).getFullYear() : 0;
+    const lastYear = payments.length > 0 ? new Date(payments[payments.length - 1].date).getFullYear() : 0;
+    const pageYearLabel = firstYear === lastYear ? `${firstYear}` : `${firstYear}\u2013${lastYear}`;
+
+    return { payments, totalPages, smartStartPage, pageYearLabel };
   }, [selectedLoan, currentPage]);
 
   const onCreateLoan = async (values: LoanFormValues) => {
@@ -400,22 +404,27 @@ export default function LoanTracker() {
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          Page {currentPage + 1} of {paginatedPayments.totalPages}
-                        </span>
                         <Select
                           value={currentPage.toString()}
                           onValueChange={(v) => setCurrentPage(parseInt(v))}
                         >
-                          <SelectTrigger className="h-7 w-[90px] text-xs">
+                          <SelectTrigger className="h-7 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: paginatedPayments.totalPages }, (_, i) => (
-                              <SelectItem key={i} value={i.toString()}>
-                                Year {Math.floor((i * PAYMENTS_PER_PAGE) / 12) + 1}
-                              </SelectItem>
-                            ))}
+                            {Array.from({ length: paginatedPayments.totalPages }, (_, i) => {
+                              const pageStart = i * PAYMENTS_PER_PAGE;
+                              const first = selectedLoan!.payments[pageStart];
+                              const last = selectedLoan!.payments[Math.min(pageStart + PAYMENTS_PER_PAGE - 1, selectedLoan!.payments.length - 1)];
+                              const y1 = new Date(first.date).getFullYear();
+                              const y2 = new Date(last.date).getFullYear();
+                              const label = y1 === y2 ? `${y1}` : `${y1}\u2013${y2}`;
+                              return (
+                                <SelectItem key={i} value={i.toString()}>
+                                  {label}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>

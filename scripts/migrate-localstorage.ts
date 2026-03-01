@@ -27,7 +27,7 @@ import {
 } from "../lib/schema";
 import { data } from "./data";
 
-const sql = neon("postgres://default:vOEsriXzJ49W@ep-restless-math-a4vgnyfl-pooler.us-east-1.aws.neon.tech/verceldb?sslmode=require");
+const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
 
 // ---- Types for the legacy localStorage format ----
