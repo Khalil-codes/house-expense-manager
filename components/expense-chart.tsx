@@ -49,7 +49,7 @@ export function ExpenseChart({ data }: { data: ChartData[] }) {
           paddingAngle={2}
           dataKey="value"
           label={({ name, percent }) =>
-            percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ""
+            percent && percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ""
           }
           labelLine={false}
           fontSize={11}
@@ -63,7 +63,7 @@ export function ExpenseChart({ data }: { data: ChartData[] }) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
+          formatter={(value) => value ? [`₹${value.toLocaleString()}`, ""] : undefined}
           contentStyle={{
             backgroundColor: isDark ? "hsl(222, 47%, 11%)" : "white",
             border: `1px solid ${isDark ? "hsl(215, 20%, 25%)" : "hsl(214, 32%, 91%)"}`,

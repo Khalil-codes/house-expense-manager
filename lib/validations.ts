@@ -73,25 +73,25 @@ export const addPrepaymentSchema = z.object({
 
 export const expenseFormSchema = z.object({
   description: z.string().min(1, "Description is required"),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  category_id: z.coerce.number().int().positive("Category is required"),
+  amount: z.number().positive("Amount must be greater than 0"),
+  category_id: z.number().int().positive("Category is required"),
   date: z.string().min(1, "Date is required"),
-  payee_id: z.coerce.number().int().positive().nullable().default(null),
-  payment_method: z.string().default("Cash"),
-  notes: z.string().nullable().default(null),
-  covered_by_loan: z.boolean().default(false),
+  payee_id: z.number().int().positive().nullable(),
+  payment_method: z.string(),
+  notes: z.string().nullable(),
+  covered_by_loan: z.boolean(),
 });
 
 export const loanFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  interest: z.coerce.number().positive("Interest must be greater than 0"),
-  tenure: z.coerce.number().int().positive("Tenure must be at least 1 year"),
+  amount: z.number().positive("Amount must be greater than 0"),
+  interest: z.number().positive("Interest must be greater than 0"),
+  tenure: z.number().int().positive("Tenure must be at least 1 year"),
   start_date: z.string().min(1, "Start date is required"),
 });
 
 export const prepaymentFormSchema = z.object({
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  amount: z.number().positive("Amount must be greater than 0"),
   date: z.string().min(1, "Date is required"),
 });
 

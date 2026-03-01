@@ -151,10 +151,7 @@ export default function MonthlyAnalytics() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number, name: string) => [
-                  `₹${value.toLocaleString()}`,
-                  name,
-                ]}
+                formatter={(value, name) => value ? [`₹${value.toLocaleString()}`, name] : undefined}
                 contentStyle={{
                   backgroundColor: isDark ? "hsl(222, 47%, 11%)" : "white",
                   border: `1px solid ${isDark ? "hsl(215, 20%, 25%)" : "hsl(214, 32%, 91%)"}`,

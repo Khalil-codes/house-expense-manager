@@ -47,7 +47,15 @@ export function PrepaymentForm({ remainingBalance, onSubmit }: PrepaymentFormPro
             <FormItem>
               <FormLabel>Prepayment Amount (₹)</FormLabel>
               <FormControl>
-                <Input type="number" {...field} placeholder="e.g. 100000" />
+                <Input
+                  type="number"
+                  placeholder="e.g. 100000"
+                  value={field.value}
+                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                  ref={field.ref}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

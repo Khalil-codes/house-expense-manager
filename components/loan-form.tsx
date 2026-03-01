@@ -77,9 +77,17 @@ export function LoanForm({ onSubmit, onCancel }: LoanFormProps) {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount (₹)</FormLabel>
+                    <FormLabel>Amount</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} placeholder="2500000" />
+                      <Input
+                        type="number"
+                        placeholder="2500000"
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -94,9 +102,13 @@ export function LoanForm({ onSubmit, onCancel }: LoanFormProps) {
                     <FormControl>
                       <Input
                         type="number"
-                        {...field}
                         placeholder="8.5"
                         step="0.01"
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
                       />
                     </FormControl>
                     <FormMessage />
@@ -112,7 +124,15 @@ export function LoanForm({ onSubmit, onCancel }: LoanFormProps) {
                   <FormItem>
                     <FormLabel>Tenure (years)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} placeholder="20" />
+                      <Input
+                        type="number"
+                        placeholder="20"
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

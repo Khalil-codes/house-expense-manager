@@ -169,7 +169,15 @@ export function ExpenseForm({
               <FormItem>
                 <FormLabel>Amount</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} placeholder="5000" />
+                  <Input
+                    type="number"
+                    placeholder="5000"
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
