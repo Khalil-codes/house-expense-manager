@@ -1,12 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { payees } from "@/lib/schema";
+import { payees, departments } from "@/lib/schema";
 import { createPayeeSchema } from "@/lib/validations";
 import { eq, asc } from "drizzle-orm";
 
 export async function GET() {
-  const rows = await db.select().from(payees).orderBy(asc(payees.name));
-  return NextResponse.json(rows);
+  const rows = await db
+    .select({
+      id: payees.id,
+      name: payees.name,
+      phone: payees.phone,
+      department_id: payees.department_id,
+      department: departments.name,
+      created_at: payees.created_at,
+    })
+    .from(payees)
+    .leftJoin(departments, eq(payees.department_id, departments.id))
+    .orderBy(asc(payees.name));
+
+  const mapped = rows.map((r) => ({
+    ...r,
+    department: r.department ?? null,
+  }));
+
+  return NextResponse.json(mapped);
 }
 
 export async function POST(request: NextRequest) {
@@ -22,7 +39,11 @@ export async function POST(request: NextRequest) {
 
   const [row] = await db
     .insert(payees)
-    .values({ name: parsed.data.name, phone: parsed.data.phone })
+    .values({
+      name: parsed.data.name,
+      phone: parsed.data.phone,
+      department_id: parsed.data.department_id,
+    })
     .onConflictDoNothing()
     .returning();
 

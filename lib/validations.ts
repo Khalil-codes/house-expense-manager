@@ -18,6 +18,7 @@ export const createExpenseSchema = z.object({
   category_id: z.number().int().positive(),
   date: z.string().min(1),
   payee_id: z.number().int().positive().nullable().default(null),
+  department_id: z.number().int().positive().nullable().default(null),
   payment_method: z.string().default("Cash"),
   notes: z.string().nullable().default(null),
   covered_by_loan: z.boolean().default(false),
@@ -29,6 +30,7 @@ export const updateExpenseSchema = z.object({
   category_id: z.number().int().positive(),
   date: z.string().min(1),
   payee_id: z.number().int().positive().nullable().default(null),
+  department_id: z.number().int().positive().nullable().default(null),
   payment_method: z.string().default("Cash"),
   notes: z.string().nullable().default(null),
   covered_by_loan: z.boolean().default(false),
@@ -39,9 +41,29 @@ export const createCategorySchema = z.object({
   type: z.enum(["construction", "property", "both"]),
 });
 
+export const updateCategorySchema = z.object({
+  name: z.string().min(1, "Category name is required"),
+  type: z.enum(["construction", "property", "both"]),
+});
+
 export const createPayeeSchema = z.object({
   name: z.string().min(1, "Payee name is required"),
   phone: z.string().nullable().default(null),
+  department_id: z.number().int().positive().nullable().default(null),
+});
+
+export const updatePayeeSchema = z.object({
+  name: z.string().min(1, "Payee name is required"),
+  phone: z.string().nullable().default(null),
+  department_id: z.number().int().positive().nullable().default(null),
+});
+
+export const createDepartmentSchema = z.object({
+  name: z.string().min(1, "Department name is required"),
+});
+
+export const updateDepartmentSchema = z.object({
+  name: z.string().min(1, "Department name is required"),
 });
 
 export const createLoanSchema = z.object({
@@ -77,6 +99,7 @@ export const expenseFormSchema = z.object({
   category_id: z.number().int().positive("Category is required"),
   date: z.string().min(1, "Date is required"),
   payee_id: z.number().int().positive().nullable(),
+  department_id: z.number().int().positive().nullable(),
   payment_method: z.string(),
   notes: z.string().nullable(),
   covered_by_loan: z.boolean(),
@@ -102,7 +125,11 @@ export const prepaymentFormSchema = z.object({
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreatePayeeInput = z.infer<typeof createPayeeSchema>;
+export type UpdatePayeeInput = z.infer<typeof updatePayeeSchema>;
+export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
+export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
 export type CreateLoanInput = z.infer<typeof createLoanSchema>;
 export type UpdateLoanNameInput = z.infer<typeof updateLoanNameSchema>;
 export type TogglePaymentInput = z.infer<typeof togglePaymentSchema>;

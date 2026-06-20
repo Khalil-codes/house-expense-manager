@@ -8,16 +8,25 @@ import {
   loanService,
   categoryService,
   payeeService,
+  departmentService,
   dataService,
   PAYMENT_METHODS,
   type Expense,
   type LoanData,
   type Category,
   type Payee,
+  type Department,
 } from "@/lib/api/expense-service";
-import type { CreateCategoryInput, CreatePayeeInput } from "@/lib/validations";
+import type {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+  CreatePayeeInput,
+  UpdatePayeeInput,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+} from "@/lib/validations";
 
-export type { Expense, LoanData, LoanPayment, Prepayment, Category, Payee } from "@/lib/api/expense-service";
+export type { Expense, LoanData, LoanPayment, Prepayment, Category, Payee, Department } from "@/lib/api/expense-service";
 export { PAYMENT_METHODS } from "@/lib/api/expense-service";
 
 export function useExpenseService() {
@@ -45,12 +54,18 @@ export function useExpenseService() {
     queryFn: payeeService.getAll,
   });
 
+  const departmentsQuery = useQuery({
+    queryKey: queryKeys.departments,
+    queryFn: departmentService.getAll,
+  });
+
   // ---- Derived data ----
 
   const expenses = (expensesQuery.data ?? []) as Expense[];
   const loans = (loansQuery.data ?? []) as LoanData[];
   const allCategories = (categoriesQuery.data ?? []) as Category[];
   const allPayees = (payeesQuery.data ?? []) as Payee[];
+  const allDepartments = (departmentsQuery.data ?? []) as Department[];
   const isLoading = expensesQuery.isLoading || loansQuery.isLoading;
 
   const construction = useMemo(
@@ -93,6 +108,24 @@ export function useExpenseService() {
     return expenseTotal + loanPaidTotal;
   }, [expenses, loans]);
 
+  // ---- Department Mutations ----
+
+  const createDepartmentMutation = useMutation({
+    mutationFn: (data: CreateDepartmentInput) => departmentService.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
+  });
+
+  const updateDepartmentMutation = useMutation({
+    mutationFn: ({ id, ...data }: UpdateDepartmentInput & { id: number }) =>
+      departmentService.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
+  });
+
+  const deleteDepartmentMutation = useMutation({
+    mutationFn: (id: number) => departmentService.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
+  });
+
   // ---- Category Mutations ----
 
   const createCategoryMutation = useMutation({
@@ -100,10 +133,32 @@ export function useExpenseService() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
   });
 
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, ...data }: UpdateCategoryInput & { id: number }) =>
+      categoryService.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: number) => categoryService.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
+  });
+
   // ---- Payee Mutations ----
 
   const createPayeeMutation = useMutation({
     mutationFn: (data: CreatePayeeInput) => payeeService.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.payees }),
+  });
+
+  const updatePayeeMutation = useMutation({
+    mutationFn: ({ id, ...data }: UpdatePayeeInput & { id: number }) =>
+      payeeService.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.payees }),
+  });
+
+  const deletePayeeMutation = useMutation({
+    mutationFn: (id: number) => payeeService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.payees }),
   });
 
@@ -118,6 +173,7 @@ export function useExpenseService() {
       category_id: number;
       date: string;
       payee_id: number | null;
+      department_id: number | null;
       payment_method: string;
       notes: string | null;
       covered_by_loan: boolean;
@@ -136,6 +192,7 @@ export function useExpenseService() {
       category_id: number;
       date: string;
       payee_id: number | null;
+      department_id: number | null;
       payment_method: string;
       notes: string | null;
       covered_by_loan: boolean;
@@ -206,6 +263,7 @@ export function useExpenseService() {
     property,
     categories: allCategories,
     payees: allPayees,
+    departments: allDepartments,
     isLoading,
 
     grandTotal,
@@ -213,8 +271,17 @@ export function useExpenseService() {
 
     PAYMENT_METHODS,
 
+    createDepartment: createDepartmentMutation.mutateAsync,
+    updateDepartment: updateDepartmentMutation.mutateAsync,
+    deleteDepartment: deleteDepartmentMutation.mutateAsync,
+
     createCategory: createCategoryMutation.mutateAsync,
+    updateCategory: updateCategoryMutation.mutateAsync,
+    deleteCategory: deleteCategoryMutation.mutateAsync,
+
     createPayee: createPayeeMutation.mutateAsync,
+    updatePayee: updatePayeeMutation.mutateAsync,
+    deletePayee: deletePayeeMutation.mutateAsync,
 
     addExpense: addExpenseMutation.mutateAsync,
     updateExpense: updateExpenseMutation.mutateAsync,
@@ -233,6 +300,7 @@ export function useExpenseService() {
       qc.invalidateQueries({ queryKey: queryKeys.loans });
       qc.invalidateQueries({ queryKey: queryKeys.categories });
       qc.invalidateQueries({ queryKey: queryKeys.payees });
+      qc.invalidateQueries({ queryKey: queryKeys.departments });
     },
 
     queryKeys,

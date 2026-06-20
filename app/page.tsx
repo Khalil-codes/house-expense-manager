@@ -13,6 +13,7 @@ import {
   Moon,
   LogOut,
   MoreVertical,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
@@ -23,6 +24,7 @@ import LoanTracker from "@/components/loan-tracker";
 import ConstructionExpenses from "@/components/construction-expenses";
 import PropertyExpenses from "@/components/property-expenses";
 import MonthlyAnalytics from "@/components/monthly-analytics";
+import Settings from "@/components/settings";
 import { useExpenseService } from "@/hooks/use-expense-service";
 import {
   DropdownMenu,
@@ -39,6 +41,7 @@ const TABS = [
   { value: "loan", label: "Loans", icon: Landmark },
   { value: "construction", label: "Build", icon: Building },
   { value: "property", label: "Property", icon: Home },
+  { value: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
 export default function HouseExpenseTracker() {
@@ -133,6 +136,7 @@ export default function HouseExpenseTracker() {
         {activeTab === "loan" && <LoanTracker />}
         {activeTab === "construction" && <ConstructionExpenses />}
         {activeTab === "property" && <PropertyExpenses />}
+        {activeTab === "settings" && <Settings />}
       </main>
 
       {/* Bottom navigation */}

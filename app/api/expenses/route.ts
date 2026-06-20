@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { expenses, categories, payees } from "@/lib/schema";
+import { expenses, categories, payees, departments } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { createExpenseSchema, expenseTypeSchema } from "@/lib/validations";
 
@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
       date: expenses.date,
       paid_to: payees.name,
       payee_id: expenses.payee_id,
+      department: departments.name,
+      department_id: expenses.department_id,
       payment_method: expenses.payment_method,
       notes: expenses.notes,
       covered_by_loan: expenses.covered_by_loan,
@@ -30,6 +32,7 @@ export async function GET(request: NextRequest) {
     .from(expenses)
     .innerJoin(categories, eq(expenses.category_id, categories.id))
     .leftJoin(payees, eq(expenses.payee_id, payees.id))
+    .leftJoin(departments, eq(expenses.department_id, departments.id))
     .orderBy(desc(expenses.date));
 
   const rows = parsed?.data
@@ -46,6 +49,8 @@ export async function GET(request: NextRequest) {
     date: r.date,
     paid_to: r.paid_to ?? "",
     payee_id: r.payee_id,
+    department: r.department ?? "",
+    department_id: r.department_id,
     payment_method: r.payment_method ?? "Cash",
     notes: r.notes,
     covered_by_loan: r.covered_by_loan,
@@ -65,7 +70,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { id, type, description, amount, category_id, date, payee_id, payment_method, notes, covered_by_loan } = parsed.data;
+  const {
+    id,
+    type,
+    description,
+    amount,
+    category_id,
+    date,
+    payee_id,
+    department_id,
+    payment_method,
+    notes,
+    covered_by_loan,
+  } = parsed.data;
 
   await db.insert(expenses).values({
     id,
@@ -75,6 +92,7 @@ export async function POST(request: NextRequest) {
     category_id,
     date,
     payee_id,
+    department_id,
     payment_method,
     notes,
     covered_by_loan,

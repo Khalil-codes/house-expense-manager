@@ -45,7 +45,7 @@ import {
   expenseFormSchema,
   type ExpenseFormValues,
 } from "@/lib/validations";
-import type { Expense, Category, Payee } from "@/lib/api/expense-service";
+import type { Expense, Category, Payee, Department } from "@/lib/api/expense-service";
 import { PAYMENT_METHODS } from "@/lib/api/expense-service";
 
 interface ExpenseFormProps {
@@ -53,6 +53,7 @@ interface ExpenseFormProps {
   editExpense?: Expense | null;
   categories: Category[];
   payees: Payee[];
+  departments: Department[];
   onSubmit: (values: ExpenseFormValues) => Promise<void>;
   onCancel: () => void;
   onCreateCategory: (name: string, type: string) => Promise<Category>;
@@ -65,6 +66,7 @@ const DEFAULT_VALUES: ExpenseFormValues = {
   category_id: 0,
   date: new Date().toISOString().split("T")[0],
   payee_id: null,
+  department_id: null,
   payment_method: "Cash",
   notes: null,
   covered_by_loan: false,
@@ -75,6 +77,7 @@ export function ExpenseForm({
   editExpense,
   categories,
   payees,
+  departments,
   onSubmit,
   onCancel,
   onCreateCategory,
@@ -100,6 +103,7 @@ export function ExpenseForm({
           category_id: editExpense.category_id ?? 0,
           date: new Date(editExpense.date).toISOString().split("T")[0],
           payee_id: editExpense.payee_id ?? null,
+          department_id: editExpense.department_id ?? null,
           payment_method: editExpense.payment_method ?? "Cash",
           notes: editExpense.notes ?? null,
           covered_by_loan: editExpense.covered_by_loan ?? false,
@@ -387,6 +391,42 @@ export function ExpenseForm({
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+
+          <FormField
+            control={form.control}
+            name="department_id"
+            render={({ field }) => {
+              const selected = departments.find((d) => d.id === field.value);
+              return (
+                <FormItem>
+                  <FormLabel>Department</FormLabel>
+                  <Select
+                    value={field.value?.toString() ?? "__none__"}
+                    onValueChange={(v) =>
+                      field.onChange(v === "__none__" ? null : parseInt(v))
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select department">
+                          {selected?.name ?? "None"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id.toString()}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               );

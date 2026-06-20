@@ -10,6 +10,12 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
+export const departments = pgTable("house_expense_manager__departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 export const categories = pgTable("house_expense_manager__categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
@@ -21,6 +27,7 @@ export const payees = pgTable("house_expense_manager__payees", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   phone: text("phone"),
+  department_id: integer("department_id").references(() => departments.id),
   created_at: timestamp("created_at").defaultNow(),
 });
 
@@ -34,6 +41,7 @@ export const expenses = pgTable("house_expense_manager___expenses", {
     .references(() => categories.id),
   date: text("date").notNull(),
   payee_id: integer("payee_id").references(() => payees.id),
+  department_id: integer("department_id").references(() => departments.id),
   payment_method: text("payment_method").default("Cash"),
   notes: text("notes"),
   covered_by_loan: boolean("covered_by_loan").default(false),

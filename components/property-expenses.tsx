@@ -31,6 +31,7 @@ export default function PropertyExpenses() {
     property,
     categories,
     payees,
+    departments,
     isLoading,
     addExpense,
     updateExpense,
@@ -63,6 +64,7 @@ export default function PropertyExpenses() {
         category_id: values.category_id,
         date: new Date(values.date).toISOString(),
         payee_id: values.payee_id,
+        department_id: values.department_id,
         payment_method: values.payment_method,
         notes: values.notes,
         covered_by_loan: values.covered_by_loan,
@@ -76,6 +78,7 @@ export default function PropertyExpenses() {
         category_id: values.category_id,
         date: new Date(values.date).toISOString(),
         payee_id: values.payee_id,
+        department_id: values.department_id,
         payment_method: values.payment_method,
         notes: values.notes,
         covered_by_loan: values.covered_by_loan,
@@ -127,12 +130,13 @@ export default function PropertyExpenses() {
                   editExpense={editExpense}
                   categories={categories}
                   payees={payees}
+                  departments={departments}
                   onSubmit={onSubmit}
                   onCancel={() => setIsAddDialogOpen(false)}
                   onCreateCategory={(name, type) =>
                     createCategory({ name, type: type as "construction" | "property" | "both" })
                   }
-                  onCreatePayee={(name) => createPayee({ name, phone: null })}
+                  onCreatePayee={(name) => createPayee({ name, phone: null, department_id: null })}
                 />
               </DialogContent>
             </Dialog>

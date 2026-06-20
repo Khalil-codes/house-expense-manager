@@ -5,7 +5,11 @@ import type {
   CreateLoanInput,
   AddPrepaymentInput,
   CreateCategoryInput,
+  UpdateCategoryInput,
   CreatePayeeInput,
+  UpdatePayeeInput,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
 } from "@/lib/validations";
 
 const api = axios.create({
@@ -16,6 +20,12 @@ const api = axios.create({
 // ---------------------------------------------------------------------------
 // Response Types (what the API returns)
 // ---------------------------------------------------------------------------
+
+export interface Department {
+  id: number;
+  name: string;
+  created_at: string | null;
+}
 
 export interface Category {
   id: number;
@@ -28,6 +38,8 @@ export interface Payee {
   id: number;
   name: string;
   phone: string | null;
+  department_id: number | null;
+  department: string | null;
   created_at: string | null;
 }
 
@@ -41,6 +53,8 @@ export interface Expense {
   date: string;
   paid_to: string;
   payee_id: number | null;
+  department: string;
+  department_id: number | null;
   payment_method: string;
   notes: string | null;
   covered_by_loan: boolean;
@@ -111,6 +125,32 @@ export const queryKeys = {
   loans: ["loans"] as const,
   categories: ["categories"] as const,
   payees: ["payees"] as const,
+  departments: ["departments"] as const,
+};
+
+// ---------------------------------------------------------------------------
+// Department Service
+// ---------------------------------------------------------------------------
+
+export const departmentService = {
+  getAll: async (): Promise<Department[]> => {
+    const { data } = await api.get<Department[]>("/departments");
+    return data;
+  },
+
+  create: async (payload: CreateDepartmentInput): Promise<Department> => {
+    const { data } = await api.post<Department>("/departments", payload);
+    return data;
+  },
+
+  update: async (id: number, payload: UpdateDepartmentInput): Promise<Department> => {
+    const { data } = await api.put<Department>(`/departments/${id}`, payload);
+    return data;
+  },
+
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/departments/${id}`);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -128,6 +168,15 @@ export const categoryService = {
     const { data } = await api.post<Category>("/categories", payload);
     return data;
   },
+
+  update: async (id: number, payload: UpdateCategoryInput): Promise<Category> => {
+    const { data } = await api.put<Category>(`/categories/${id}`, payload);
+    return data;
+  },
+
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/categories/${id}`);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -143,6 +192,15 @@ export const payeeService = {
   create: async (payload: CreatePayeeInput): Promise<Payee> => {
     const { data } = await api.post<Payee>("/payees", payload);
     return data;
+  },
+
+  update: async (id: number, payload: UpdatePayeeInput): Promise<Payee> => {
+    const { data } = await api.put<Payee>(`/payees/${id}`, payload);
+    return data;
+  },
+
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/payees/${id}`);
   },
 };
 
@@ -209,7 +267,7 @@ export const loanService = {
 };
 
 // ---------------------------------------------------------------------------
-// Data Service (export / migrate)
+// Data Service (export)
 // ---------------------------------------------------------------------------
 
 export const dataService = {
@@ -219,7 +277,6 @@ export const dataService = {
     });
     return data;
   },
-
 };
 
 // ---------------------------------------------------------------------------
