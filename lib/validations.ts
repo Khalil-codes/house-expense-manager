@@ -90,6 +90,80 @@ export const addPrepaymentSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Ledger Schemas
+// ---------------------------------------------------------------------------
+
+export const ledgerFrequencySchema = z.enum(["weekly", "monthly"]);
+
+export const LEDGER_PAYMENT_METHODS = [
+  "Cash",
+  "UPI",
+  "Bank Transfer",
+  "Cheque",
+  "Credit Card",
+  "Other",
+] as const;
+
+export const createLedgerPersonSchema = z.object({
+  name: z.string().min(1, "Person name is required"),
+  phone: z.string().nullable().default(null),
+});
+
+export const updateLedgerPersonSchema = z.object({
+  name: z.string().min(1, "Person name is required"),
+  phone: z.string().nullable().default(null),
+});
+
+export const createLedgerEntrySchema = z
+  .object({
+    id: z.string().min(1),
+    person_id: z.number().int().positive(),
+    amount: z.number().positive(),
+    date_lent: z.string().min(1),
+    date_paid_off: z.string().nullable().default(null),
+    recurring: z.boolean().default(false),
+    payment_method: z.string().nullable().default(null),
+    notes: z.string().nullable().default(null),
+    // Only used when recurring is true to generate the installment schedule.
+    installment_count: z.number().int().positive().nullable().default(null),
+    frequency: ledgerFrequencySchema.nullable().default(null),
+    first_due_date: z.string().nullable().default(null),
+  })
+  .refine(
+    (data) =>
+      !data.recurring ||
+      (data.installment_count !== null &&
+        data.frequency !== null &&
+        data.first_due_date !== null &&
+        data.first_due_date.length > 0),
+    {
+      message:
+        "Recurring entries require installment count, frequency, and first due date",
+      path: ["installment_count"],
+    }
+  );
+
+export const updateLedgerEntrySchema = z.object({
+  person_id: z.number().int().positive(),
+  amount: z.number().positive(),
+  date_lent: z.string().min(1),
+  date_paid_off: z.string().nullable().default(null),
+  payment_method: z.string().nullable().default(null),
+  notes: z.string().nullable().default(null),
+});
+
+export const toggleInstallmentSchema = z.object({
+  installmentId: z.number().int(),
+  paid: z.boolean(),
+});
+
+export const createLedgerPaymentSchema = z.object({
+  amount: z.number().positive(),
+  date: z.string().min(1),
+  payment_method: z.string().nullable().default(null),
+});
+
+// ---------------------------------------------------------------------------
 // Form Schemas (coerce strings from HTML inputs)
 // ---------------------------------------------------------------------------
 
@@ -118,6 +192,38 @@ export const prepaymentFormSchema = z.object({
   date: z.string().min(1, "Date is required"),
 });
 
+export const ledgerEntryFormSchema = z
+  .object({
+    person_id: z.number().int().positive("Person is required"),
+    amount: z.number().positive("Amount must be greater than 0"),
+    date_lent: z.string().min(1, "Date lent is required"),
+    date_paid_off: z.string().nullable(),
+    payment_method: z.string().nullable(),
+    notes: z.string().nullable(),
+    recurring: z.boolean(),
+    installment_count: z.number().int().positive().nullable(),
+    frequency: ledgerFrequencySchema.nullable(),
+    first_due_date: z.string().nullable(),
+  })
+  .refine(
+    (data) =>
+      !data.recurring ||
+      (data.installment_count !== null &&
+        data.installment_count > 0 &&
+        data.frequency !== null &&
+        !!data.first_due_date),
+    {
+      message: "Installment count, frequency and first due date are required",
+      path: ["installment_count"],
+    }
+  );
+
+export const ledgerPaymentFormSchema = z.object({
+  amount: z.number().positive("Amount must be greater than 0"),
+  date: z.string().min(1, "Date is required"),
+  payment_method: z.string().nullable(),
+});
+
 // ---------------------------------------------------------------------------
 // Inferred Types
 // ---------------------------------------------------------------------------
@@ -137,3 +243,12 @@ export type AddPrepaymentInput = z.infer<typeof addPrepaymentSchema>;
 export type ExpenseFormValues = z.infer<typeof expenseFormSchema>;
 export type LoanFormValues = z.infer<typeof loanFormSchema>;
 export type PrepaymentFormValues = z.infer<typeof prepaymentFormSchema>;
+export type LedgerFrequency = z.infer<typeof ledgerFrequencySchema>;
+export type CreateLedgerPersonInput = z.infer<typeof createLedgerPersonSchema>;
+export type UpdateLedgerPersonInput = z.infer<typeof updateLedgerPersonSchema>;
+export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
+export type UpdateLedgerEntryInput = z.infer<typeof updateLedgerEntrySchema>;
+export type ToggleInstallmentInput = z.infer<typeof toggleInstallmentSchema>;
+export type CreateLedgerPaymentInput = z.infer<typeof createLedgerPaymentSchema>;
+export type LedgerEntryFormValues = z.infer<typeof ledgerEntryFormSchema>;
+export type LedgerPaymentFormValues = z.infer<typeof ledgerPaymentFormSchema>;

@@ -79,3 +79,52 @@ export const prepayments = pgTable("house_expense_manager__prepayments", {
   date: text("date").notNull(),
   amount: real("amount").notNull(),
 });
+
+export const ledgerPersons = pgTable("house_expense_manager__ledger_persons", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  phone: text("phone"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const ledgerEntries = pgTable("house_expense_manager__ledger_entries", {
+  id: text("id").primaryKey(),
+  person_id: integer("person_id")
+    .notNull()
+    .references(() => ledgerPersons.id),
+  amount: real("amount").notNull(),
+  date_lent: text("date_lent").notNull(),
+  date_paid_off: text("date_paid_off"),
+  recurring: boolean("recurring").default(false),
+  payment_method: text("payment_method").default("Cash"),
+  notes: text("notes"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const ledgerInstallments = pgTable(
+  "house_expense_manager__ledger_installments",
+  {
+    id: serial("id").primaryKey(),
+    ledger_id: text("ledger_id")
+      .notNull()
+      .references(() => ledgerEntries.id, { onDelete: "cascade" }),
+    due_date: text("due_date").notNull(),
+    amount: real("amount").notNull(),
+    paid: boolean("paid").default(false),
+    paid_date: text("paid_date"),
+  }
+);
+
+export const ledgerPayments = pgTable(
+  "house_expense_manager__ledger_payments",
+  {
+    id: serial("id").primaryKey(),
+    ledger_id: text("ledger_id")
+      .notNull()
+      .references(() => ledgerEntries.id, { onDelete: "cascade" }),
+    amount: real("amount").notNull(),
+    date: text("date").notNull(),
+    payment_method: text("payment_method"),
+    created_at: timestamp("created_at").defaultNow(),
+  }
+);

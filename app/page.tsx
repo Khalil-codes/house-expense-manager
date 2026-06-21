@@ -8,6 +8,7 @@ import {
   Home,
   Building,
   Landmark,
+  HandCoins,
   Download,
   Sun,
   Moon,
@@ -24,6 +25,7 @@ import LoanTracker from "@/components/loan-tracker";
 import ConstructionExpenses from "@/components/construction-expenses";
 import PropertyExpenses from "@/components/property-expenses";
 import MonthlyAnalytics from "@/components/monthly-analytics";
+import LedgerTracker from "@/components/ledger-tracker";
 import Settings from "@/components/settings";
 import { useExpenseService } from "@/hooks/use-expense-service";
 import {
@@ -41,6 +43,7 @@ const TABS = [
   { value: "loan", label: "Loans", icon: Landmark },
   { value: "construction", label: "Build", icon: Building },
   { value: "property", label: "Property", icon: Home },
+  { value: "ledger", label: "Ledger", icon: HandCoins },
   { value: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
@@ -136,6 +139,7 @@ export default function HouseExpenseTracker() {
         {activeTab === "loan" && <LoanTracker />}
         {activeTab === "construction" && <ConstructionExpenses />}
         {activeTab === "property" && <PropertyExpenses />}
+        {activeTab === "ledger" && <LedgerTracker />}
         {activeTab === "settings" && <Settings />}
       </main>
 
