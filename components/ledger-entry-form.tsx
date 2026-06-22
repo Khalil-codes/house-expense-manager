@@ -141,7 +141,7 @@ export function LedgerEntryForm({
               return (
                 <FormItem>
                   <FormLabel>Person</FormLabel>
-                  <Popover open={personOpen} onOpenChange={setPersonOpen}>
+                  <Popover open={personOpen} onOpenChange={setPersonOpen} modal>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
