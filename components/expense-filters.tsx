@@ -18,16 +18,19 @@ export type ViewMode = "table" | "grid";
 interface ExpenseFiltersProps {
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
-  categoryFilter: string | undefined;
-  onCategoryFilterChange: (value: string | undefined) => void;
   payeeFilter: string | undefined;
   onPayeeFilterChange: (value: string | undefined) => void;
+  areaFilter: string | undefined;
+  onAreaFilterChange: (value: string | undefined) => void;
+  fundingFilter: string | undefined;
+  onFundingFilterChange: (value: string | undefined) => void;
   loanOnly: boolean;
   onLoanOnlyChange: (value: boolean) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  uniqueCategories: string[];
   uniquePayees: string[];
+  uniqueAreas: string[];
+  uniqueFundingSources: string[];
   filteredCount: number;
   filteredTotal: number;
   onClearAll: () => void;
@@ -37,16 +40,19 @@ interface ExpenseFiltersProps {
 export function ExpenseFilters({
   globalFilter,
   onGlobalFilterChange,
-  categoryFilter,
-  onCategoryFilterChange,
   payeeFilter,
   onPayeeFilterChange,
+  areaFilter,
+  onAreaFilterChange,
+  fundingFilter,
+  onFundingFilterChange,
   loanOnly,
   onLoanOnlyChange,
   viewMode,
   onViewModeChange,
-  uniqueCategories,
   uniquePayees,
+  uniqueAreas,
+  uniqueFundingSources,
   filteredCount,
   filteredTotal,
   onClearAll,
@@ -65,24 +71,26 @@ export function ExpenseFilters({
       </div>
 
       <div className="flex gap-2.5 flex-wrap items-center">
-        <Select
-          value={categoryFilter ?? "__all__"}
-          onValueChange={(v) =>
-            onCategoryFilterChange(v === "__all__" ? undefined : v)
-          }
-        >
-          <SelectTrigger className="h-9 text-xs min-w-[120px] w-auto">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Categories</SelectItem>
-            {uniqueCategories.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {uniqueAreas.length > 0 && (
+          <Select
+            value={areaFilter ?? "__all__"}
+            onValueChange={(v) =>
+              onAreaFilterChange(v === "__all__" ? undefined : v)
+            }
+          >
+            <SelectTrigger className="h-9 text-xs min-w-[110px] w-auto">
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Areas</SelectItem>
+              {uniqueAreas.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select
           value={payeeFilter ?? "__all__"}
@@ -102,6 +110,27 @@ export function ExpenseFilters({
             ))}
           </SelectContent>
         </Select>
+
+        {uniqueFundingSources.length > 0 && (
+          <Select
+            value={fundingFilter ?? "__all__"}
+            onValueChange={(v) =>
+              onFundingFilterChange(v === "__all__" ? undefined : v)
+            }
+          >
+            <SelectTrigger className="h-9 text-xs min-w-[120px] w-auto">
+              <SelectValue placeholder="Funding" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Funding</SelectItem>
+              {uniqueFundingSources.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <div className="flex items-center gap-2 ml-1">
           <Switch

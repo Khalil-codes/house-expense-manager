@@ -78,8 +78,13 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
     return Array.from(set).sort();
   }, [expenses]);
 
-  const uniqueCategories = useMemo(() => {
-    const set = new Set(expenses.map((e) => e.category).filter(Boolean));
+  const uniqueAreas = useMemo(() => {
+    const set = new Set(expenses.map((e) => e.area).filter(Boolean));
+    return Array.from(set).sort();
+  }, [expenses]);
+
+  const uniqueFundingSources = useMemo(() => {
+    const set = new Set(expenses.map((e) => e.funding_source).filter(Boolean));
     return Array.from(set).sort();
   }, [expenses]);
 
@@ -136,17 +141,28 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
         ),
       },
       {
-        accessorKey: "category",
-        header: ({ column }) => (
-          <SortableHeader label="Category" column={column} />
-        ),
+        accessorKey: "area",
+        header: ({ column }) => <SortableHeader label="Area" column={column} />,
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {row.original.category}
+            {row.original.area || "\u2014"}
           </span>
         ),
         filterFn: "equals",
+        enableGlobalFilter: false,
         meta: { className: "hidden md:table-cell" },
+      },
+      {
+        accessorKey: "funding_source",
+        header: "Funding",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.original.funding_source || "\u2014"}
+          </span>
+        ),
+        filterFn: "equals",
+        enableGlobalFilter: false,
+        meta: { className: "hidden xl:table-cell" },
       },
       {
         accessorKey: "paid_to",
@@ -257,24 +273,31 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
       <ExpenseFilters
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}
-        categoryFilter={
-          table.getColumn("category")?.getFilterValue() as string | undefined
-        }
-        onCategoryFilterChange={(v) =>
-          table.getColumn("category")?.setFilterValue(v)
-        }
         payeeFilter={
           table.getColumn("paid_to")?.getFilterValue() as string | undefined
         }
         onPayeeFilterChange={(v) =>
           table.getColumn("paid_to")?.setFilterValue(v)
         }
+        areaFilter={
+          table.getColumn("area")?.getFilterValue() as string | undefined
+        }
+        onAreaFilterChange={(v) => table.getColumn("area")?.setFilterValue(v)}
+        fundingFilter={
+          table.getColumn("funding_source")?.getFilterValue() as
+            | string
+            | undefined
+        }
+        onFundingFilterChange={(v) =>
+          table.getColumn("funding_source")?.setFilterValue(v)
+        }
         loanOnly={loanOnly}
         onLoanOnlyChange={handleLoanOnlyChange}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        uniqueCategories={uniqueCategories}
         uniquePayees={uniquePayees}
+        uniqueAreas={uniqueAreas}
+        uniqueFundingSources={uniqueFundingSources}
         filteredCount={filteredRows.length}
         filteredTotal={filteredTotal}
         onClearAll={clearAllFilters}

@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  expenses,
+  payees,
+  areas,
+  fundingSources,
+  expenseTags,
+  tags,
+} from "@/lib/schema";
 import { db } from "@/lib/db";
-import { expenses, categories, payees, departments } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { createExpenseSchema, expenseTypeSchema } from "@/lib/validations";
+import { getOrCreatePayee } from "@/lib/server/reference";
+import { isLoanFundingSource, syncExpenseTags } from "@/lib/server/expenses";
 
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type");
@@ -18,42 +27,64 @@ export async function GET(request: NextRequest) {
       type: expenses.type,
       description: expenses.description,
       amount: expenses.amount,
-      category: categories.name,
-      category_id: expenses.category_id,
+      area: areas.name,
+      area_id: expenses.area_id,
       date: expenses.date,
       paid_to: payees.name,
       payee_id: expenses.payee_id,
-      department: departments.name,
-      department_id: expenses.department_id,
+      funding_source: fundingSources.name,
+      funding_source_id: expenses.funding_source_id,
+      funding_source_kind: fundingSources.kind,
       payment_method: expenses.payment_method,
       notes: expenses.notes,
       covered_by_loan: expenses.covered_by_loan,
     })
     .from(expenses)
-    .innerJoin(categories, eq(expenses.category_id, categories.id))
+    .leftJoin(areas, eq(expenses.area_id, areas.id))
     .leftJoin(payees, eq(expenses.payee_id, payees.id))
-    .leftJoin(departments, eq(expenses.department_id, departments.id))
+    .leftJoin(fundingSources, eq(expenses.funding_source_id, fundingSources.id))
     .orderBy(desc(expenses.date));
 
   const rows = parsed?.data
     ? await baseQuery.where(eq(expenses.type, parsed.data))
     : await baseQuery;
 
+  const ids = rows.map((r) => r.id);
+  const tagRows = ids.length
+    ? await db
+        .select({
+          expense_id: expenseTags.expense_id,
+          name: tags.name,
+        })
+        .from(expenseTags)
+        .innerJoin(tags, eq(expenseTags.tag_id, tags.id))
+        .where(inArray(expenseTags.expense_id, ids))
+    : [];
+
+  const tagsByExpense = new Map<string, string[]>();
+  for (const t of tagRows) {
+    const arr = tagsByExpense.get(t.expense_id) ?? [];
+    arr.push(t.name);
+    tagsByExpense.set(t.expense_id, arr);
+  }
+
   const mapped = rows.map((r) => ({
     id: r.id,
     type: r.type,
     description: r.description,
     amount: r.amount,
-    category: r.category,
-    category_id: r.category_id,
+    area: r.area ?? "",
+    area_id: r.area_id,
     date: r.date,
     paid_to: r.paid_to ?? "",
     payee_id: r.payee_id,
-    department: r.department ?? "",
-    department_id: r.department_id,
+    funding_source: r.funding_source ?? "",
+    funding_source_id: r.funding_source_id,
+    funding_source_kind: r.funding_source_kind ?? "",
     payment_method: r.payment_method ?? "Cash",
     notes: r.notes,
     covered_by_loan: r.covered_by_loan,
+    tags: tagsByExpense.get(r.id) ?? [],
   }));
 
   return NextResponse.json(mapped);
@@ -75,28 +106,33 @@ export async function POST(request: NextRequest) {
     type,
     description,
     amount,
-    category_id,
+    area_id,
     date,
-    payee_id,
-    department_id,
+    payee_name,
+    funding_source_id,
     payment_method,
     notes,
-    covered_by_loan,
+    tags: tagNames,
   } = parsed.data;
+
+  const payee_id = await getOrCreatePayee(payee_name);
+  const covered_by_loan = await isLoanFundingSource(funding_source_id);
 
   await db.insert(expenses).values({
     id,
     type,
     description,
     amount,
-    category_id,
+    area_id,
     date,
     payee_id,
-    department_id,
+    funding_source_id,
     payment_method,
     notes,
     covered_by_loan,
   });
+
+  await syncExpenseTags(id, tagNames);
 
   return NextResponse.json({ success: true }, { status: 201 });
 }

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useExpenseService, type Category, type Payee, type Department } from "@/hooks/use-expense-service";
+import {
+  useExpenseService,
+  type Payee,
+  type Area,
+  type Tag as TagType,
+} from "@/hooks/use-expense-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,27 +30,28 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  Building2,
-  Tag,
+  Tags,
   Users,
+  MapPin,
+  Merge,
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 
 export default function Settings() {
   const {
-    departments,
-    categories,
     payees,
-    createDepartment,
-    updateDepartment,
-    deleteDepartment,
-    createCategory,
-    updateCategory,
-    deleteCategory,
+    areas,
+    tags,
     createPayee,
     updatePayee,
     deletePayee,
+    mergePayees,
+    createArea,
+    updateArea,
+    deleteArea,
+    createTag,
+    deleteTag,
     isLoading,
   } = useExpenseService();
 
@@ -60,201 +66,21 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
-      <DepartmentSection
-        departments={departments}
-        onCreate={createDepartment}
-        onUpdate={updateDepartment}
-        onDelete={deleteDepartment}
-      />
       <PayeeSection
         payees={payees}
-        departments={departments}
         onCreate={createPayee}
         onUpdate={updatePayee}
         onDelete={deletePayee}
+        onMerge={mergePayees}
       />
-      <CategorySection
-        categories={categories}
-        onCreate={createCategory}
-        onUpdate={updateCategory}
-        onDelete={deleteCategory}
+      <AreaSection
+        areas={areas}
+        onCreate={createArea}
+        onUpdate={updateArea}
+        onDelete={deleteArea}
       />
+      <TagSection tags={tags} onCreate={createTag} onDelete={deleteTag} />
     </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Departments
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-function DepartmentSection({
-  departments,
-  onCreate,
-  onUpdate,
-  onDelete,
-}: {
-  departments: Department[];
-  onCreate: (data: { name: string }) => Promise<unknown>;
-  onUpdate: (data: { id: number; name: string }) => Promise<unknown>;
-  onDelete: (id: number) => Promise<unknown>;
-}) {
-  const [addOpen, setAddOpen] = useState(false);
-  const [editItem, setEditItem] = useState<Department | null>(null);
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const handleAdd = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      await onCreate({ name: name.trim() });
-      setName("");
-      setAddOpen(false);
-      toast.success("Department created");
-    } catch {
-      toast.error("Failed to create department");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleEdit = async () => {
-    if (!editItem || !name.trim()) return;
-    setSaving(true);
-    try {
-      await onUpdate({ id: editItem.id, name: name.trim() });
-      setEditItem(null);
-      setName("");
-      toast.success("Department updated");
-    } catch {
-      toast.error("Failed to update department");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    setDeletingId(id);
-    try {
-      await onDelete(id);
-      toast.success("Department deleted");
-    } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.error ?? "Failed to delete"
-        : "Failed to delete";
-      toast.error(msg);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Departments</CardTitle>
-            <span className="text-xs text-muted-foreground">({departments.length})</span>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setName("");
-              setAddOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {departments.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No departments yet
-          </p>
-        )}
-        {departments.map((dept) => (
-          <div
-            key={dept.id}
-            className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-          >
-            <span className="text-sm font-medium truncate">{dept.name}</span>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  setEditItem(dept);
-                  setName(dept.name);
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                disabled={deletingId !== null}
-                onClick={() => handleDelete(dept.id)}
-              >
-                {deletingId === dept.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-
-      {/* Add dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>New Department</DialogTitle>
-            <DialogDescription>Add a department to organise payees and expenses.</DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Department name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <DialogFooter>
-            <Button onClick={handleAdd} disabled={saving || !name.trim()} className="w-full">
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit dialog */}
-      <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Edit Department</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Department name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleEdit()}
-          />
-          <DialogFooter>
-            <Button onClick={handleEdit} disabled={saving || !name.trim()} className="w-full">
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
   );
 }
 
@@ -264,24 +90,42 @@ function DepartmentSection({
 
 function PayeeSection({
   payees,
-  departments,
   onCreate,
   onUpdate,
   onDelete,
+  onMerge,
 }: {
   payees: Payee[];
-  departments: Department[];
-  onCreate: (data: { name: string; phone: string | null; department_id: number | null }) => Promise<unknown>;
-  onUpdate: (data: { id: number; name: string; phone: string | null; department_id: number | null }) => Promise<unknown>;
+  onCreate: (data: { name: string; phone: string | null }) => Promise<unknown>;
+  onUpdate: (data: { id: number; name: string; phone: string | null }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
+  onMerge: (data: { from_id: number; into_id: number }) => Promise<unknown>;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Payee | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", department_id: null as number | null });
+  const [mergeItem, setMergeItem] = useState<Payee | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<number | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "" });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const resetForm = () => setForm({ name: "", phone: "", department_id: null });
+  const handleMerge = async () => {
+    if (!mergeItem || mergeTarget === null) return;
+    setMerging(true);
+    try {
+      await onMerge({ from_id: mergeItem.id, into_id: mergeTarget });
+      setMergeItem(null);
+      setMergeTarget(null);
+      toast.success("Payees merged");
+    } catch {
+      toast.error("Failed to merge payees");
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const resetForm = () => setForm({ name: "", phone: "" });
 
   const handleAdd = async () => {
     if (!form.name.trim()) return;
@@ -290,7 +134,6 @@ function PayeeSection({
       await onCreate({
         name: form.name.trim(),
         phone: form.phone.trim() || null,
-        department_id: form.department_id,
       });
       resetForm();
       setAddOpen(false);
@@ -310,7 +153,6 @@ function PayeeSection({
         id: editItem.id,
         name: form.name.trim(),
         phone: form.phone.trim() || null,
-        department_id: form.department_id,
       });
       setEditItem(null);
       resetForm();
@@ -349,27 +191,6 @@ function PayeeSection({
         value={form.phone}
         onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
       />
-      <Select
-        value={form.department_id?.toString() ?? "__none__"}
-        onValueChange={(v) =>
-          setForm((f) => ({
-            ...f,
-            department_id: v === "__none__" ? null : parseInt(v),
-          }))
-        }
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Department (optional)" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">No department</SelectItem>
-          {departments.map((d) => (
-            <SelectItem key={d.id} value={d.id.toString()}>
-              {d.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
     </div>
   );
 
@@ -408,10 +229,21 @@ function PayeeSection({
             <div className="min-w-0">
               <p className="text-sm font-medium truncate">{payee.name}</p>
               <p className="text-xs text-muted-foreground truncate">
-                {[payee.phone, payee.department].filter(Boolean).join(" \u00B7 ") || "No details"}
+                {payee.phone || "No phone"}
               </p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => {
+                  setMergeItem(payee);
+                  setMergeTarget(null);
+                }}
+              >
+                <Merge className="h-3.5 w-3.5" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -421,7 +253,6 @@ function PayeeSection({
                   setForm({
                     name: payee.name,
                     phone: payee.phone ?? "",
-                    department_id: payee.department_id,
                   });
                 }}
               >
@@ -444,6 +275,47 @@ function PayeeSection({
           </div>
         ))}
       </CardContent>
+
+      {/* Merge dialog */}
+      <Dialog open={!!mergeItem} onOpenChange={(o) => !o && setMergeItem(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Merge Payee</DialogTitle>
+            <DialogDescription>
+              Move all expenses from{" "}
+              <span className="font-medium">{mergeItem?.name}</span> into another
+              payee, then delete the duplicate.
+            </DialogDescription>
+          </DialogHeader>
+          <Select
+            value={mergeTarget?.toString() ?? ""}
+            onValueChange={(v) => setMergeTarget(parseInt(v))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Merge into..." />
+            </SelectTrigger>
+            <SelectContent>
+              {payees
+                .filter((p) => p.id !== mergeItem?.id)
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              onClick={handleMerge}
+              disabled={merging || mergeTarget === null}
+              className="w-full"
+            >
+              {merging && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -482,53 +354,55 @@ function PayeeSection({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Categories
+   Areas
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function CategorySection({
-  categories,
+function AreaSection({
+  areas,
   onCreate,
   onUpdate,
   onDelete,
 }: {
-  categories: Category[];
-  onCreate: (data: { name: string; type: "construction" | "property" | "both" }) => Promise<unknown>;
-  onUpdate: (data: { id: number; name: string; type: "construction" | "property" | "both" }) => Promise<unknown>;
+  areas: Area[];
+  onCreate: (data: { name: string; sort_order: number }) => Promise<unknown>;
+  onUpdate: (data: { id: number; name: string; sort_order: number }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
 }) {
   const [addOpen, setAddOpen] = useState(false);
-  const [editItem, setEditItem] = useState<Category | null>(null);
-  const [form, setForm] = useState({ name: "", type: "both" as "construction" | "property" | "both" });
+  const [editItem, setEditItem] = useState<Area | null>(null);
+  const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const resetForm = () => setForm({ name: "", type: "both" });
-
   const handleAdd = async () => {
-    if (!form.name.trim()) return;
+    if (!name.trim()) return;
     setSaving(true);
     try {
-      await onCreate({ name: form.name.trim(), type: form.type });
-      resetForm();
+      await onCreate({ name: name.trim(), sort_order: areas.length });
+      setName("");
       setAddOpen(false);
-      toast.success("Category created");
+      toast.success("Area created");
     } catch {
-      toast.error("Failed to create category");
+      toast.error("Failed to create area");
     } finally {
       setSaving(false);
     }
   };
 
   const handleEdit = async () => {
-    if (!editItem || !form.name.trim()) return;
+    if (!editItem || !name.trim()) return;
     setSaving(true);
     try {
-      await onUpdate({ id: editItem.id, name: form.name.trim(), type: form.type });
+      await onUpdate({
+        id: editItem.id,
+        name: name.trim(),
+        sort_order: editItem.sort_order ?? 0,
+      });
       setEditItem(null);
-      resetForm();
-      toast.success("Category updated");
+      setName("");
+      toast.success("Area updated");
     } catch {
-      toast.error("Failed to update category");
+      toast.error("Failed to update area");
     } finally {
       setSaving(false);
     }
@@ -538,10 +412,12 @@ function CategorySection({
     setDeletingId(id);
     try {
       await onDelete(id);
-      toast.success("Category deleted");
+      toast.success("Area deleted");
     } catch (err) {
       const msg = axios.isAxiosError(err)
         ? err.response?.data?.error ?? "Failed to delete"
+        : err instanceof Error
+        ? err.message
         : "Failed to delete";
       toast.error(msg);
     } finally {
@@ -549,50 +425,19 @@ function CategorySection({
     }
   };
 
-  const typeLabel = (t: string) =>
-    t === "both" ? "Both" : t === "construction" ? "Construction" : "Property";
-
-  const categoryFormFields = (
-    <div className="space-y-3">
-      <Input
-        placeholder="Category name"
-        value={form.name}
-        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-      />
-      <Select
-        value={form.type}
-        onValueChange={(v) =>
-          setForm((f) => ({
-            ...f,
-            type: v as "construction" | "property" | "both",
-          }))
-        }
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="both">Both</SelectItem>
-          <SelectItem value="construction">Construction</SelectItem>
-          <SelectItem value="property">Property</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  );
-
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Tag className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Categories</CardTitle>
-            <span className="text-xs text-muted-foreground">({categories.length})</span>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Areas</CardTitle>
+            <span className="text-xs text-muted-foreground">({areas.length})</span>
           </div>
           <Button
             size="sm"
             onClick={() => {
-              resetForm();
+              setName("");
               setAddOpen(true);
             }}
           >
@@ -602,28 +447,25 @@ function CategorySection({
         </div>
       </CardHeader>
       <CardContent className="space-y-1.5">
-        {categories.length === 0 && (
+        {areas.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No categories yet
+            No areas yet
           </p>
         )}
-        {categories.map((cat) => (
+        {areas.map((area) => (
           <div
-            key={cat.id}
+            key={area.id}
             className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{cat.name}</p>
-              <p className="text-xs text-muted-foreground">{typeLabel(cat.type)}</p>
-            </div>
+            <span className="text-sm font-medium truncate">{area.name}</span>
             <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => {
-                  setEditItem(cat);
-                  setForm({ name: cat.name, type: cat.type });
+                  setEditItem(area);
+                  setName(area.name);
                 }}
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -633,9 +475,9 @@ function CategorySection({
                 size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 disabled={deletingId !== null}
-                onClick={() => handleDelete(cat.id)}
+                onClick={() => handleDelete(area.id)}
               >
-                {deletingId === cat.id ? (
+                {deletingId === area.id ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Trash2 className="h-3.5 w-3.5" />
@@ -646,16 +488,22 @@ function CategorySection({
         ))}
       </CardContent>
 
-      {/* Add dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>New Category</DialogTitle>
-            <DialogDescription>Add a category for expenses.</DialogDescription>
+            <DialogTitle>New Area</DialogTitle>
+            <DialogDescription>
+              Classify expenses by area of the house.
+            </DialogDescription>
           </DialogHeader>
-          {categoryFormFields}
+          <Input
+            placeholder="Area name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
           <DialogFooter>
-            <Button onClick={handleAdd} disabled={saving || !form.name.trim()} className="w-full">
+            <Button onClick={handleAdd} disabled={saving || !name.trim()} className="w-full">
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create
             </Button>
@@ -663,21 +511,126 @@ function CategorySection({
         </DialogContent>
       </Dialog>
 
-      {/* Edit dialog */}
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Category</DialogTitle>
+            <DialogTitle>Edit Area</DialogTitle>
           </DialogHeader>
-          {categoryFormFields}
+          <Input
+            placeholder="Area name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+          />
           <DialogFooter>
-            <Button onClick={handleEdit} disabled={saving || !form.name.trim()} className="w-full">
+            <Button onClick={handleEdit} disabled={saving || !name.trim()} className="w-full">
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tags
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function TagSection({
+  tags,
+  onCreate,
+  onDelete,
+}: {
+  tags: TagType[];
+  onCreate: (name: string) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
+}) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const handleAdd = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await onCreate(name.trim());
+      setName("");
+      toast.success("Tag created");
+    } catch {
+      toast.error("Failed to create tag");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await onDelete(id);
+      toast.success("Tag deleted");
+    } catch {
+      toast.error("Failed to delete tag");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Tags className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-base">Tags</CardTitle>
+          <span className="text-xs text-muted-foreground">({tags.length})</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Input
+            placeholder="New tag"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+          <Button onClick={handleAdd} disabled={saving || !name.trim()}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        {tags.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-2">
+            No tags yet
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+              >
+                {tag.name}
+                <button
+                  type="button"
+                  disabled={deletingId !== null}
+                  onClick={() => handleDelete(tag.id)}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  {deletingId === tag.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }

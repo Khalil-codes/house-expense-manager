@@ -15,56 +15,107 @@ export const createExpenseSchema = z.object({
   type: expenseTypeSchema,
   description: z.string().min(1),
   amount: z.number().positive(),
-  category_id: z.number().int().positive(),
+  area_id: z.number().int().positive(),
   date: z.string().min(1),
-  payee_id: z.number().int().positive().nullable().default(null),
-  department_id: z.number().int().positive().nullable().default(null),
+  payee_name: z.string().nullable().default(null),
+  funding_source_id: z.number().int().positive().nullable().default(null),
   payment_method: z.string().default("Cash"),
   notes: z.string().nullable().default(null),
-  covered_by_loan: z.boolean().default(false),
+  tags: z.array(z.string()).default([]),
 });
 
 export const updateExpenseSchema = z.object({
   description: z.string().min(1),
   amount: z.number().positive(),
-  category_id: z.number().int().positive(),
+  area_id: z.number().int().positive(),
   date: z.string().min(1),
-  payee_id: z.number().int().positive().nullable().default(null),
-  department_id: z.number().int().positive().nullable().default(null),
+  payee_name: z.string().nullable().default(null),
+  funding_source_id: z.number().int().positive().nullable().default(null),
   payment_method: z.string().default("Cash"),
   notes: z.string().nullable().default(null),
-  covered_by_loan: z.boolean().default(false),
-});
-
-export const createCategorySchema = z.object({
-  name: z.string().min(1, "Category name is required"),
-  type: z.enum(["construction", "property", "both"]),
-});
-
-export const updateCategorySchema = z.object({
-  name: z.string().min(1, "Category name is required"),
-  type: z.enum(["construction", "property", "both"]),
+  tags: z.array(z.string()).default([]),
 });
 
 export const createPayeeSchema = z.object({
   name: z.string().min(1, "Payee name is required"),
   phone: z.string().nullable().default(null),
-  department_id: z.number().int().positive().nullable().default(null),
 });
 
 export const updatePayeeSchema = z.object({
   name: z.string().min(1, "Payee name is required"),
   phone: z.string().nullable().default(null),
-  department_id: z.number().int().positive().nullable().default(null),
 });
 
-export const createDepartmentSchema = z.object({
-  name: z.string().min(1, "Department name is required"),
+export const mergePayeesSchema = z.object({
+  from_id: z.number().int().positive(),
+  into_id: z.number().int().positive(),
 });
 
-export const updateDepartmentSchema = z.object({
-  name: z.string().min(1, "Department name is required"),
+// ---------------------------------------------------------------------------
+// Area / Tag Schemas
+// ---------------------------------------------------------------------------
+
+export const createAreaSchema = z.object({
+  name: z.string().min(1, "Area name is required"),
+  sort_order: z.number().int().default(0),
 });
+
+export const updateAreaSchema = z.object({
+  name: z.string().min(1, "Area name is required"),
+  sort_order: z.number().int().default(0),
+});
+
+export const createTagSchema = z.object({
+  name: z.string().min(1, "Tag name is required"),
+});
+
+// ---------------------------------------------------------------------------
+// Funding Source Schemas
+// ---------------------------------------------------------------------------
+
+export const fundingSourceKindSchema = z.enum([
+  "sale_proceeds",
+  "loan",
+  "cash",
+  "other",
+]);
+
+export const fundingEntryDirectionSchema = z.enum(["in", "out"]);
+export const fundingEntryStatusSchema = z.enum([
+  "received",
+  "in_transit",
+  "expected",
+]);
+
+export const createFundingSourceSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  kind: fundingSourceKindSchema.default("other"),
+  total_value: z.number().nonnegative().nullable().default(null),
+  notes: z.string().nullable().default(null),
+});
+
+export const updateFundingSourceSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  kind: fundingSourceKindSchema,
+  total_value: z.number().nonnegative().nullable().default(null),
+  notes: z.string().nullable().default(null),
+  archived: z.boolean().default(false),
+});
+
+export const createFundingEntrySchema = z
+  .object({
+    direction: fundingEntryDirectionSchema,
+    amount: z.number().positive(),
+    title: z.string().min(1, "Title is required"),
+    date: z.string().min(1, "Date is required"),
+    status: fundingEntryStatusSchema.nullable().default(null),
+    method: z.string().nullable().default(null),
+    notes: z.string().nullable().default(null),
+  })
+  .refine((d) => d.direction !== "in" || d.status !== null, {
+    message: "Receipts require a status",
+    path: ["status"],
+  });
 
 export const createLoanSchema = z.object({
   id: z.string().min(1),
@@ -95,7 +146,7 @@ export const addPrepaymentSchema = z.object({
 
 export const ledgerFrequencySchema = z.enum(["weekly", "monthly"]);
 
-export const LEDGER_PAYMENT_METHODS = [
+export const PAYMENT_METHODS = [
   "Cash",
   "UPI",
   "Bank Transfer",
@@ -103,6 +154,9 @@ export const LEDGER_PAYMENT_METHODS = [
   "Credit Card",
   "Other",
 ] as const;
+
+// Kept as an alias for existing ledger imports; single source of truth above.
+export const LEDGER_PAYMENT_METHODS = PAYMENT_METHODS;
 
 export const createLedgerPersonSchema = z.object({
   name: z.string().min(1, "Person name is required"),
@@ -170,14 +224,36 @@ export const createLedgerPaymentSchema = z.object({
 export const expenseFormSchema = z.object({
   description: z.string().min(1, "Description is required"),
   amount: z.number().positive("Amount must be greater than 0"),
-  category_id: z.number().int().positive("Category is required"),
+  area_id: z.number().int().positive("Area is required"),
   date: z.string().min(1, "Date is required"),
-  payee_id: z.number().int().positive().nullable(),
-  department_id: z.number().int().positive().nullable(),
+  payee_name: z.string().nullable(),
+  funding_source_id: z.number().int().positive().nullable(),
   payment_method: z.string(),
   notes: z.string().nullable(),
-  covered_by_loan: z.boolean(),
+  tags: z.array(z.string()),
 });
+
+export const fundingSourceFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  kind: fundingSourceKindSchema,
+  total_value: z.number().nonnegative().nullable(),
+  notes: z.string().nullable(),
+});
+
+export const fundingEntryFormSchema = z
+  .object({
+    direction: fundingEntryDirectionSchema,
+    amount: z.number().positive("Amount must be greater than 0"),
+    title: z.string().min(1, "Title is required"),
+    date: z.string().min(1, "Date is required"),
+    status: fundingEntryStatusSchema.nullable(),
+    method: z.string().nullable(),
+    notes: z.string().nullable(),
+  })
+  .refine((d) => d.direction !== "in" || d.status !== null, {
+    message: "Receipts require a status",
+    path: ["status"],
+  });
 
 export const loanFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -230,12 +306,18 @@ export const ledgerPaymentFormSchema = z.object({
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
-export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
-export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreatePayeeInput = z.infer<typeof createPayeeSchema>;
 export type UpdatePayeeInput = z.infer<typeof updatePayeeSchema>;
-export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
-export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
+export type MergePayeesInput = z.infer<typeof mergePayeesSchema>;
+export type CreateAreaInput = z.infer<typeof createAreaSchema>;
+export type UpdateAreaInput = z.infer<typeof updateAreaSchema>;
+export type CreateTagInput = z.infer<typeof createTagSchema>;
+export type FundingSourceKind = z.infer<typeof fundingSourceKindSchema>;
+export type CreateFundingSourceInput = z.infer<typeof createFundingSourceSchema>;
+export type UpdateFundingSourceInput = z.infer<typeof updateFundingSourceSchema>;
+export type CreateFundingEntryInput = z.infer<typeof createFundingEntrySchema>;
+export type FundingSourceFormValues = z.infer<typeof fundingSourceFormSchema>;
+export type FundingEntryFormValues = z.infer<typeof fundingEntryFormSchema>;
 export type CreateLoanInput = z.infer<typeof createLoanSchema>;
 export type UpdateLoanNameInput = z.infer<typeof updateLoanNameSchema>;
 export type TogglePaymentInput = z.infer<typeof togglePaymentSchema>;

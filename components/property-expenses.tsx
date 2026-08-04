@@ -29,15 +29,15 @@ import type { ExpenseFormValues } from "@/lib/validations";
 export default function PropertyExpenses() {
   const {
     property,
-    categories,
     payees,
-    departments,
+    areas,
+    tags,
+    fundingSources,
     isLoading,
     addExpense,
     updateExpense,
     removeExpense,
-    createCategory,
-    createPayee,
+    createArea,
   } = useExpenseService();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -61,13 +61,13 @@ export default function PropertyExpenses() {
         id: editExpense.id,
         description: values.description,
         amount: values.amount,
-        category_id: values.category_id,
+        area_id: values.area_id,
         date: new Date(values.date).toISOString(),
-        payee_id: values.payee_id,
-        department_id: values.department_id,
+        payee_name: values.payee_name,
+        funding_source_id: values.funding_source_id,
         payment_method: values.payment_method,
         notes: values.notes,
-        covered_by_loan: values.covered_by_loan,
+        tags: values.tags,
       });
     } else {
       await addExpense({
@@ -75,13 +75,13 @@ export default function PropertyExpenses() {
         type: "property",
         description: values.description,
         amount: values.amount,
-        category_id: values.category_id,
+        area_id: values.area_id,
         date: new Date(values.date).toISOString(),
-        payee_id: values.payee_id,
-        department_id: values.department_id,
+        payee_name: values.payee_name,
+        funding_source_id: values.funding_source_id,
         payment_method: values.payment_method,
         notes: values.notes,
-        covered_by_loan: values.covered_by_loan,
+        tags: values.tags,
       });
     }
 
@@ -128,15 +128,13 @@ export default function PropertyExpenses() {
                 <ExpenseForm
                   type="property"
                   editExpense={editExpense}
-                  categories={categories}
                   payees={payees}
-                  departments={departments}
+                  areas={areas}
+                  tags={tags}
+                  fundingSources={fundingSources}
                   onSubmit={onSubmit}
                   onCancel={() => setIsAddDialogOpen(false)}
-                  onCreateCategory={(name, type) =>
-                    createCategory({ name, type: type as "construction" | "property" | "both" })
-                  }
-                  onCreatePayee={(name) => createPayee({ name, phone: null, department_id: null })}
+                  onCreateArea={(name) => createArea({ name, sort_order: 0 })}
                 />
               </DialogContent>
             </Dialog>

@@ -4,12 +4,9 @@ import type {
   UpdateExpenseInput,
   CreateLoanInput,
   AddPrepaymentInput,
-  CreateCategoryInput,
-  UpdateCategoryInput,
   CreatePayeeInput,
   UpdatePayeeInput,
-  CreateDepartmentInput,
-  UpdateDepartmentInput,
+  FundingSourceKind,
 } from "@/lib/validations";
 
 const api = axios.create({
@@ -21,25 +18,52 @@ const api = axios.create({
 // Response Types (what the API returns)
 // ---------------------------------------------------------------------------
 
-export interface Department {
+export interface Area {
+  id: number;
+  name: string;
+  sort_order: number | null;
+  created_at: string | null;
+}
+
+export interface Tag {
   id: number;
   name: string;
   created_at: string | null;
 }
 
-export interface Category {
+export interface FundingLedgerItem {
+  kind: "receipt" | "payout" | "expense";
+  id: string;
+  amount: number;
+  direction: "in" | "out";
+  title: string;
+  date: string;
+  status: string | null;
+  method: string | null;
+  notes: string | null;
+}
+
+export interface FundingSource {
   id: number;
   name: string;
-  type: "construction" | "property" | "both";
+  kind: FundingSourceKind;
+  total_value: number | null;
+  notes: string | null;
+  archived: boolean | null;
+  sort_order: number | null;
   created_at: string | null;
+  received: number;
+  in_transit: number;
+  remaining: number | null;
+  outflows: number;
+  balance: number;
+  ledger: FundingLedgerItem[];
 }
 
 export interface Payee {
   id: number;
   name: string;
   phone: string | null;
-  department_id: number | null;
-  department: string | null;
   created_at: string | null;
 }
 
@@ -48,16 +72,18 @@ export interface Expense {
   type: "construction" | "property";
   description: string;
   amount: number;
-  category: string;
-  category_id: number | null;
+  area: string;
+  area_id: number | null;
   date: string;
   paid_to: string;
   payee_id: number | null;
-  department: string;
-  department_id: number | null;
+  funding_source: string;
+  funding_source_id: number | null;
+  funding_source_kind: string;
   payment_method: string;
   notes: string | null;
   covered_by_loan: boolean;
+  tags: string[];
 }
 
 export interface LoanPayment {
@@ -123,60 +149,10 @@ interface LoanApiRow {
 export const queryKeys = {
   expenses: ["expenses"] as const,
   loans: ["loans"] as const,
-  categories: ["categories"] as const,
   payees: ["payees"] as const,
-  departments: ["departments"] as const,
-};
-
-// ---------------------------------------------------------------------------
-// Department Service
-// ---------------------------------------------------------------------------
-
-export const departmentService = {
-  getAll: async (): Promise<Department[]> => {
-    const { data } = await api.get<Department[]>("/departments");
-    return data;
-  },
-
-  create: async (payload: CreateDepartmentInput): Promise<Department> => {
-    const { data } = await api.post<Department>("/departments", payload);
-    return data;
-  },
-
-  update: async (id: number, payload: UpdateDepartmentInput): Promise<Department> => {
-    const { data } = await api.put<Department>(`/departments/${id}`, payload);
-    return data;
-  },
-
-  remove: async (id: number): Promise<void> => {
-    await api.delete(`/departments/${id}`);
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Category Service
-// ---------------------------------------------------------------------------
-
-export const categoryService = {
-  getAll: async (type?: string): Promise<Category[]> => {
-    const params = type ? { type } : {};
-    const { data } = await api.get<Category[]>("/categories", { params });
-    return data;
-  },
-
-  create: async (payload: CreateCategoryInput): Promise<Category> => {
-    const { data } = await api.post<Category>("/categories", payload);
-    return data;
-  },
-
-  update: async (id: number, payload: UpdateCategoryInput): Promise<Category> => {
-    const { data } = await api.put<Category>(`/categories/${id}`, payload);
-    return data;
-  },
-
-  remove: async (id: number): Promise<void> => {
-    await api.delete(`/categories/${id}`);
-  },
+  areas: ["areas"] as const,
+  tags: ["tags"] as const,
+  fundingSources: ["funding-sources"] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -283,14 +259,7 @@ export const dataService = {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const PAYMENT_METHODS = [
-  "Cash",
-  "UPI",
-  "Bank Transfer",
-  "Cheque",
-  "Credit Card",
-  "Other",
-] as const;
+export { PAYMENT_METHODS } from "@/lib/validations";
 
 // ---------------------------------------------------------------------------
 // Mappers

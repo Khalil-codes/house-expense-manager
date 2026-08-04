@@ -5,9 +5,10 @@ import {
   Trash,
   Loader2,
   Calendar,
-  Tag,
   User,
   CreditCard,
+  MapPin,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,10 +56,12 @@ export function ExpenseCard({
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 pb-3">
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-            <Tag className="h-3 w-3" />
-            {expense.category}
-          </span>
+          {expense.area && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              {expense.area}
+            </span>
+          )}
           {expense.paid_to && (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
               <User className="h-3 w-3" />
@@ -71,15 +74,29 @@ export function ExpenseCard({
               {expense.payment_method}
             </span>
           )}
-          {expense.covered_by_loan && (
+          {expense.funding_source && (
             <Badge
               variant="secondary"
-              className="text-[10px] px-2 py-0.5 font-normal"
+              className="gap-1 text-[10px] px-2 py-0.5 font-normal"
             >
-              Loan covered
+              <Wallet className="h-3 w-3" />
+              {expense.funding_source}
             </Badge>
           )}
         </div>
+
+        {expense.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+            {expense.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
+                #{t}
+              </span>
+            ))}
+          </div>
+        )}
 
         {expense.notes && (
           <div className="px-4 pb-3">

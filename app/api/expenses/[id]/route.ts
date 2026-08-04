@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { expenses } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { updateExpenseSchema } from "@/lib/validations";
+import { getOrCreatePayee } from "@/lib/server/reference";
+import { isLoanFundingSource, syncExpenseTags } from "@/lib/server/expenses";
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const p = await params;
@@ -16,10 +18,37 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     );
   }
 
+  const {
+    description,
+    amount,
+    area_id,
+    date,
+    payee_name,
+    funding_source_id,
+    payment_method,
+    notes,
+    tags: tagNames,
+  } = parsed.data;
+
+  const payee_id = await getOrCreatePayee(payee_name);
+  const covered_by_loan = await isLoanFundingSource(funding_source_id);
+
   await db
     .update(expenses)
-    .set(parsed.data)
+    .set({
+      description,
+      amount,
+      area_id,
+      date,
+      payee_id,
+      funding_source_id,
+      payment_method,
+      notes,
+      covered_by_loan,
+    })
     .where(eq(expenses.id, p.id));
+
+  await syncExpenseTags(p.id, tagNames);
 
   return NextResponse.json({ success: true });
 }

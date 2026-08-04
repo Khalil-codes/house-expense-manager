@@ -6,27 +6,55 @@ import {
   queryKeys,
   expenseService,
   loanService,
-  categoryService,
   payeeService,
-  departmentService,
   dataService,
   PAYMENT_METHODS,
   type Expense,
   type LoanData,
-  type Category,
   type Payee,
-  type Department,
+  type Area,
+  type Tag,
+  type FundingSource,
 } from "@/lib/api/expense-service";
 import type {
-  CreateCategoryInput,
-  UpdateCategoryInput,
+  CreateExpenseInput,
+  UpdateExpenseInput,
   CreatePayeeInput,
   UpdatePayeeInput,
-  CreateDepartmentInput,
-  UpdateDepartmentInput,
+  CreateAreaInput,
+  UpdateAreaInput,
+  CreateFundingSourceInput,
+  UpdateFundingSourceInput,
+  CreateFundingEntryInput,
 } from "@/lib/validations";
+import {
+  listAreas,
+  createArea,
+  updateArea,
+  deleteArea,
+} from "@/lib/actions/areas";
+import { listTags, createTag, deleteTag } from "@/lib/actions/tags";
+import {
+  listFundingSources,
+  createFundingSource,
+  updateFundingSource,
+  deleteFundingSource,
+  addFundingEntry,
+  deleteFundingEntry,
+} from "@/lib/actions/funding";
+import { mergePayees } from "@/lib/actions/payees";
 
-export type { Expense, LoanData, LoanPayment, Prepayment, Category, Payee, Department } from "@/lib/api/expense-service";
+export type {
+  Expense,
+  LoanData,
+  LoanPayment,
+  Prepayment,
+  Payee,
+  Area,
+  Tag,
+  FundingSource,
+  FundingLedgerItem,
+} from "@/lib/api/expense-service";
 export { PAYMENT_METHODS } from "@/lib/api/expense-service";
 
 export function useExpenseService() {
@@ -44,28 +72,34 @@ export function useExpenseService() {
     queryFn: loanService.getAll,
   });
 
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories,
-    queryFn: () => categoryService.getAll(),
-  });
-
   const payeesQuery = useQuery({
     queryKey: queryKeys.payees,
     queryFn: payeeService.getAll,
   });
 
-  const departmentsQuery = useQuery({
-    queryKey: queryKeys.departments,
-    queryFn: departmentService.getAll,
+  const areasQuery = useQuery({
+    queryKey: queryKeys.areas,
+    queryFn: () => listAreas(),
+  });
+
+  const tagsQuery = useQuery({
+    queryKey: queryKeys.tags,
+    queryFn: () => listTags(),
+  });
+
+  const fundingSourcesQuery = useQuery({
+    queryKey: queryKeys.fundingSources,
+    queryFn: () => listFundingSources(),
   });
 
   // ---- Derived data ----
 
   const expenses = (expensesQuery.data ?? []) as Expense[];
   const loans = (loansQuery.data ?? []) as LoanData[];
-  const allCategories = (categoriesQuery.data ?? []) as Category[];
   const allPayees = (payeesQuery.data ?? []) as Payee[];
-  const allDepartments = (departmentsQuery.data ?? []) as Department[];
+  const allAreas = (areasQuery.data ?? []) as Area[];
+  const allTags = (tagsQuery.data ?? []) as Tag[];
+  const fundingSources = (fundingSourcesQuery.data ?? []) as FundingSource[];
   const isLoading = expensesQuery.isLoading || loansQuery.isLoading;
 
   const construction = useMemo(
@@ -108,42 +142,6 @@ export function useExpenseService() {
     return expenseTotal + loanPaidTotal;
   }, [expenses, loans]);
 
-  // ---- Department Mutations ----
-
-  const createDepartmentMutation = useMutation({
-    mutationFn: (data: CreateDepartmentInput) => departmentService.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
-  });
-
-  const updateDepartmentMutation = useMutation({
-    mutationFn: ({ id, ...data }: UpdateDepartmentInput & { id: number }) =>
-      departmentService.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
-  });
-
-  const deleteDepartmentMutation = useMutation({
-    mutationFn: (id: number) => departmentService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.departments }),
-  });
-
-  // ---- Category Mutations ----
-
-  const createCategoryMutation = useMutation({
-    mutationFn: (data: CreateCategoryInput) => categoryService.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
-  });
-
-  const updateCategoryMutation = useMutation({
-    mutationFn: ({ id, ...data }: UpdateCategoryInput & { id: number }) =>
-      categoryService.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
-  });
-
-  const deleteCategoryMutation = useMutation({
-    mutationFn: (id: number) => categoryService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
-  });
-
   // ---- Payee Mutations ----
 
   const createPayeeMutation = useMutation({
@@ -162,47 +160,109 @@ export function useExpenseService() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.payees }),
   });
 
+  const mergePayeesMutation = useMutation({
+    mutationFn: ({ from_id, into_id }: { from_id: number; into_id: number }) =>
+      mergePayees({ from_id, into_id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.payees });
+      qc.invalidateQueries({ queryKey: queryKeys.expenses });
+    },
+  });
+
   // ---- Expense Mutations ----
 
   const addExpenseMutation = useMutation({
-    mutationFn: (data: {
-      id: string;
-      type: "construction" | "property";
-      description: string;
-      amount: number;
-      category_id: number;
-      date: string;
-      payee_id: number | null;
-      department_id: number | null;
-      payment_method: string;
-      notes: string | null;
-      covered_by_loan: boolean;
-    }) => expenseService.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.expenses }),
+    mutationFn: (data: CreateExpenseInput) => expenseService.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.expenses });
+      qc.invalidateQueries({ queryKey: queryKeys.payees });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
+    },
   });
 
   const updateExpenseMutation = useMutation({
-    mutationFn: ({
-      id,
-      ...data
-    }: {
-      id: string;
-      description: string;
-      amount: number;
-      category_id: number;
-      date: string;
-      payee_id: number | null;
-      department_id: number | null;
-      payment_method: string;
-      notes: string | null;
-      covered_by_loan: boolean;
-    }) => expenseService.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.expenses }),
+    mutationFn: ({ id, ...data }: UpdateExpenseInput & { id: string }) =>
+      expenseService.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.expenses });
+      qc.invalidateQueries({ queryKey: queryKeys.payees });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
+    },
   });
 
   const removeExpenseMutation = useMutation({
     mutationFn: (id: string) => expenseService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.expenses }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.expenses });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
+    },
+  });
+
+  // ---- Area Mutations ----
+
+  const createAreaMutation = useMutation({
+    mutationFn: (data: CreateAreaInput) => createArea(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.areas }),
+  });
+
+  const updateAreaMutation = useMutation({
+    mutationFn: ({ id, ...data }: UpdateAreaInput & { id: number }) =>
+      updateArea(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.areas }),
+  });
+
+  const deleteAreaMutation = useMutation({
+    mutationFn: (id: number) => deleteArea(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.areas }),
+  });
+
+  // ---- Tag Mutations ----
+
+  const createTagMutation = useMutation({
+    mutationFn: (name: string) => createTag({ name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.tags }),
+  });
+
+  const deleteTagMutation = useMutation({
+    mutationFn: (id: number) => deleteTag(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.expenses });
+    },
+  });
+
+  // ---- Funding Source Mutations ----
+
+  const createFundingSourceMutation = useMutation({
+    mutationFn: (data: CreateFundingSourceInput) => createFundingSource(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
+  });
+
+  const updateFundingSourceMutation = useMutation({
+    mutationFn: ({ id, ...data }: UpdateFundingSourceInput & { id: number }) =>
+      updateFundingSource(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
+  });
+
+  const deleteFundingSourceMutation = useMutation({
+    mutationFn: (id: number) => deleteFundingSource(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
+  });
+
+  const addFundingEntryMutation = useMutation({
+    mutationFn: ({
+      sourceId,
+      ...data
+    }: CreateFundingEntryInput & { sourceId: number }) =>
+      addFundingEntry(sourceId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
+  });
+
+  const deleteFundingEntryMutation = useMutation({
+    mutationFn: (entryId: number) => deleteFundingEntry(entryId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
   });
 
   // ---- Loan Mutations ----
@@ -261,9 +321,10 @@ export function useExpenseService() {
     loans,
     construction,
     property,
-    categories: allCategories,
     payees: allPayees,
-    departments: allDepartments,
+    areas: allAreas,
+    tags: allTags,
+    fundingSources,
     isLoading,
 
     grandTotal,
@@ -271,17 +332,23 @@ export function useExpenseService() {
 
     PAYMENT_METHODS,
 
-    createDepartment: createDepartmentMutation.mutateAsync,
-    updateDepartment: updateDepartmentMutation.mutateAsync,
-    deleteDepartment: deleteDepartmentMutation.mutateAsync,
-
-    createCategory: createCategoryMutation.mutateAsync,
-    updateCategory: updateCategoryMutation.mutateAsync,
-    deleteCategory: deleteCategoryMutation.mutateAsync,
-
     createPayee: createPayeeMutation.mutateAsync,
     updatePayee: updatePayeeMutation.mutateAsync,
     deletePayee: deletePayeeMutation.mutateAsync,
+    mergePayees: mergePayeesMutation.mutateAsync,
+
+    createArea: createAreaMutation.mutateAsync,
+    updateArea: updateAreaMutation.mutateAsync,
+    deleteArea: deleteAreaMutation.mutateAsync,
+
+    createTag: createTagMutation.mutateAsync,
+    deleteTag: deleteTagMutation.mutateAsync,
+
+    createFundingSource: createFundingSourceMutation.mutateAsync,
+    updateFundingSource: updateFundingSourceMutation.mutateAsync,
+    deleteFundingSource: deleteFundingSourceMutation.mutateAsync,
+    addFundingEntry: addFundingEntryMutation.mutateAsync,
+    deleteFundingEntry: deleteFundingEntryMutation.mutateAsync,
 
     addExpense: addExpenseMutation.mutateAsync,
     updateExpense: updateExpenseMutation.mutateAsync,
@@ -298,9 +365,10 @@ export function useExpenseService() {
     refreshData: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses });
       qc.invalidateQueries({ queryKey: queryKeys.loans });
-      qc.invalidateQueries({ queryKey: queryKeys.categories });
       qc.invalidateQueries({ queryKey: queryKeys.payees });
-      qc.invalidateQueries({ queryKey: queryKeys.departments });
+      qc.invalidateQueries({ queryKey: queryKeys.areas });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
     },
 
     queryKeys,

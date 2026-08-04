@@ -29,7 +29,6 @@ export async function PUT(
     .set({
       name: parsed.data.name,
       phone: parsed.data.phone,
-      department_id: parsed.data.department_id,
     })
     .where(eq(payees.id, id))
     .returning();

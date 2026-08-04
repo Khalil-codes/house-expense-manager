@@ -3,12 +3,17 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, ChevronsUpDown, PlusCircle, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  ChevronDown,
+  PlusCircle,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -31,6 +36,11 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Form,
   FormControl,
   FormField,
@@ -38,61 +48,70 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  expenseFormSchema,
-  type ExpenseFormValues,
-} from "@/lib/validations";
-import type { Expense, Category, Payee, Department } from "@/lib/api/expense-service";
+import { DialogFooter } from "@/components/ui/dialog";
+import { expenseFormSchema, type ExpenseFormValues } from "@/lib/validations";
+import type {
+  Expense,
+  Payee,
+  Area,
+  Tag,
+  FundingSource,
+} from "@/lib/api/expense-service";
 import { PAYMENT_METHODS } from "@/lib/api/expense-service";
+import { PayeeCombobox } from "@/components/payee-combobox";
+import { TagInput } from "@/components/tag-input";
 
 interface ExpenseFormProps {
   type: "construction" | "property";
   editExpense?: Expense | null;
-  categories: Category[];
   payees: Payee[];
-  departments: Department[];
+  areas: Area[];
+  tags: Tag[];
+  fundingSources: FundingSource[];
   onSubmit: (values: ExpenseFormValues) => Promise<void>;
   onCancel: () => void;
-  onCreateCategory: (name: string, type: string) => Promise<Category>;
-  onCreatePayee: (name: string) => Promise<Payee>;
+  onCreateArea: (name: string) => Promise<Area>;
 }
 
 const DEFAULT_VALUES: ExpenseFormValues = {
   description: "",
   amount: 0,
-  category_id: 0,
+  area_id: 0,
   date: new Date().toISOString().split("T")[0],
-  payee_id: null,
-  department_id: null,
+  payee_name: null,
+  funding_source_id: null,
   payment_method: "Cash",
   notes: null,
-  covered_by_loan: false,
+  tags: [],
 };
 
 export function ExpenseForm({
   type,
   editExpense,
-  categories,
   payees,
-  departments,
+  areas,
+  tags,
+  fundingSources,
   onSubmit,
   onCancel,
-  onCreateCategory,
-  onCreatePayee,
+  onCreateArea,
 }: ExpenseFormProps) {
-  const [categoryOpen, setCategoryOpen] = useState(false);
-  const [payeeOpen, setPayeeOpen] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newPayeeName, setNewPayeeName] = useState("");
-  const [creatingCategory, setCreatingCategory] = useState(false);
-  const [creatingPayee, setCreatingPayee] = useState(false);
+  const [areaOpen, setAreaOpen] = useState(false);
+  const [newAreaName, setNewAreaName] = useState("");
+  const [creatingArea, setCreatingArea] = useState(false);
 
-  const filteredCategories = categories.filter(
-    (c) => c.type === type || c.type === "both"
+  // Open the extra section by default when editing an expense that already uses
+  // one of those optional fields, so nothing is hidden from the user.
+  const [showMore, setShowMore] = useState(
+    !!editExpense &&
+      ((editExpense.tags?.length ?? 0) > 0 ||
+        !!editExpense.notes ||
+        (!!editExpense.payment_method &&
+          editExpense.payment_method !== "Cash"))
   );
+
+  const activeFundingSources = fundingSources.filter((s) => !s.archived);
+  const tagSuggestions = tags.map((t) => t.name);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -100,42 +119,29 @@ export function ExpenseForm({
       ? {
           description: editExpense.description,
           amount: editExpense.amount,
-          category_id: editExpense.category_id ?? 0,
+          area_id: editExpense.area_id ?? 0,
           date: new Date(editExpense.date).toISOString().split("T")[0],
-          payee_id: editExpense.payee_id ?? null,
-          department_id: editExpense.department_id ?? null,
+          payee_name: editExpense.paid_to || null,
+          funding_source_id: editExpense.funding_source_id ?? null,
           payment_method: editExpense.payment_method ?? "Cash",
           notes: editExpense.notes ?? null,
-          covered_by_loan: editExpense.covered_by_loan ?? false,
+          tags: editExpense.tags ?? [],
         }
       : DEFAULT_VALUES,
   });
 
   const isEditMode = !!editExpense;
 
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim() || creatingCategory) return;
-    setCreatingCategory(true);
+  const handleCreateArea = async () => {
+    if (!newAreaName.trim() || creatingArea) return;
+    setCreatingArea(true);
     try {
-      const created = await onCreateCategory(newCategoryName.trim(), type);
-      form.setValue("category_id", created.id);
-      setNewCategoryName("");
-      setCategoryOpen(false);
+      const created = await onCreateArea(newAreaName.trim());
+      form.setValue("area_id", created.id);
+      setNewAreaName("");
+      setAreaOpen(false);
     } finally {
-      setCreatingCategory(false);
-    }
-  };
-
-  const handleCreatePayee = async () => {
-    if (!newPayeeName.trim() || creatingPayee) return;
-    setCreatingPayee(true);
-    try {
-      const created = await onCreatePayee(newPayeeName.trim());
-      form.setValue("payee_id", created.id);
-      setNewPayeeName("");
-      setPayeeOpen(false);
-    } finally {
-      setCreatingPayee(false);
+      setCreatingArea(false);
     }
   };
 
@@ -144,16 +150,17 @@ export function ExpenseForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="space-y-5 py-2">
+        <div className="space-y-4 py-1">
           <FormField
             control={form.control}
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>What was it for?</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
+                    autoFocus
                     placeholder={
                       type === "construction"
                         ? "e.g. Foundation work"
@@ -166,21 +173,164 @@ export function ExpenseForm({
             )}
           />
 
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {"\u20B9"}
+                      </span>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="5,000"
+                        className="pl-7"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           <FormField
             control={form.control}
-            name="amount"
+            name="area_id"
+            render={({ field }) => {
+              const selected = areas.find((a) => a.id === field.value);
+              return (
+                <FormItem>
+                  <FormLabel>Area of house</FormLabel>
+                  <Popover open={areaOpen} onOpenChange={setAreaOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={areaOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          <span
+                            className={cn(
+                              "truncate",
+                              !selected && "text-muted-foreground"
+                            )}
+                          >
+                            {selected?.name ?? "Select an area"}
+                          </span>
+                          <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[--radix-popover-trigger-width] p-0"
+                      align="start"
+                    >
+                      <Command>
+                        <CommandInput placeholder="Search areas..." />
+                        <CommandList>
+                          <CommandEmpty>No areas found.</CommandEmpty>
+                          <CommandGroup>
+                            {areas.map((area) => (
+                              <CommandItem
+                                key={area.id}
+                                value={area.name}
+                                onSelect={() => {
+                                  field.onChange(area.id);
+                                  setAreaOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === area.id
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {area.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                          <CommandSeparator />
+                          <CommandGroup>
+                            <div className="flex items-center gap-1 px-2 py-1.5">
+                              <Input
+                                placeholder="New area..."
+                                value={newAreaName}
+                                onChange={(e) =>
+                                  setNewAreaName(e.target.value)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleCreateArea();
+                                  }
+                                }}
+                                className="h-7 text-xs"
+                              />
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 shrink-0"
+                                disabled={creatingArea || !newAreaName.trim()}
+                                onClick={handleCreateArea}
+                              >
+                                {creatingArea ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <PlusCircle className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+
+          <FormField
+            control={form.control}
+            name="payee_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Amount</FormLabel>
+                <FormLabel>Paid to</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="5000"
+                  <PayeeCombobox
                     value={field.value}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
+                    onChange={field.onChange}
+                    payees={payees}
                   />
                 </FormControl>
                 <FormMessage />
@@ -190,221 +340,12 @@ export function ExpenseForm({
 
           <FormField
             control={form.control}
-            name="category_id"
+            name="funding_source_id"
             render={({ field }) => {
-              const selected = filteredCategories.find(
-                (c) => c.id === field.value
-              );
+              const selected = fundingSources.find((s) => s.id === field.value);
               return (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={categoryOpen}
-                          className="w-full justify-between font-normal"
-                        >
-                          <span className="truncate">
-                            {selected?.name ?? "Select category"}
-                          </span>
-                          <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search categories..." />
-                        <CommandList>
-                          <CommandEmpty>No categories found.</CommandEmpty>
-                          <CommandGroup>
-                            {filteredCategories.map((cat) => (
-                              <CommandItem
-                                key={cat.id}
-                                value={cat.name}
-                                onSelect={() => {
-                                  field.onChange(cat.id);
-                                  setCategoryOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value === cat.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {cat.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                          <CommandSeparator />
-                          <CommandGroup>
-                            <div className="flex items-center gap-1 px-2 py-1.5">
-                              <Input
-                                placeholder="New category..."
-                                value={newCategoryName}
-                                onChange={(e) =>
-                                  setNewCategoryName(e.target.value)
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleCreateCategory();
-                                  }
-                                }}
-                                className="h-7 text-xs"
-                              />
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0"
-                                disabled={creatingCategory || !newCategoryName.trim()}
-                                onClick={handleCreateCategory}
-                              >
-                                {creatingCategory ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <PlusCircle className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              );
-            }}
-          />
-
-          <FormField
-            control={form.control}
-            name="payee_id"
-            render={({ field }) => {
-              const selected = payees.find((p) => p.id === field.value);
-              return (
-                <FormItem>
-                  <FormLabel>Paid To</FormLabel>
-                  <Popover open={payeeOpen} onOpenChange={setPayeeOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={payeeOpen}
-                          className="w-full justify-between font-normal"
-                        >
-                          <span className="truncate">
-                            {selected?.name ?? "Select payee"}
-                          </span>
-                          <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search payees..." />
-                        <CommandList>
-                          <CommandEmpty>No payees found.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="__none__"
-                              onSelect={() => {
-                                field.onChange(null);
-                                setPayeeOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  field.value === null
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              <span className="text-muted-foreground">
-                                None
-                              </span>
-                            </CommandItem>
-                            {payees.map((payee) => (
-                              <CommandItem
-                                key={payee.id}
-                                value={payee.name}
-                                onSelect={() => {
-                                  field.onChange(payee.id);
-                                  setPayeeOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value === payee.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {payee.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                          <CommandSeparator />
-                          <CommandGroup>
-                            <div className="flex items-center gap-1 px-2 py-1.5">
-                              <Input
-                                placeholder="New payee..."
-                                value={newPayeeName}
-                                onChange={(e) =>
-                                  setNewPayeeName(e.target.value)
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleCreatePayee();
-                                  }
-                                }}
-                                className="h-7 text-xs"
-                              />
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0"
-                                disabled={creatingPayee || !newPayeeName.trim()}
-                                onClick={handleCreatePayee}
-                              >
-                                {creatingPayee ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <PlusCircle className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              );
-            }}
-          />
-
-          <FormField
-            control={form.control}
-            name="department_id"
-            render={({ field }) => {
-              const selected = departments.find((d) => d.id === field.value);
-              return (
-                <FormItem>
-                  <FormLabel>Department</FormLabel>
+                  <FormLabel>Funding source</FormLabel>
                   <Select
                     value={field.value?.toString() ?? "__none__"}
                     onValueChange={(v) =>
@@ -413,16 +354,16 @@ export function ExpenseForm({
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select department">
+                        <SelectValue placeholder="Select funding source">
                           {selected?.name ?? "None"}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="__none__">None</SelectItem>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id.toString()}>
-                          {dept.name}
+                      {activeFundingSources.map((s) => (
+                        <SelectItem key={s.id} value={s.id.toString()}>
+                          {s.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -433,84 +374,88 @@ export function ExpenseForm({
             }}
           />
 
-          <FormField
-            control={form.control}
-            name="date"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <Collapsible open={showMore} onOpenChange={setShowMore}>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between px-1 text-muted-foreground hover:text-foreground"
+              >
+                More details
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    showMore && "rotate-180"
+                  )}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 pt-3">
+            <FormField
+              control={form.control}
+              name="payment_method"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment method</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="payment_method"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Payment Method</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        {method}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="tags"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tags</FormLabel>
+                    <FormControl>
+                      <TagInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        suggestions={tagSuggestions}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="covered_by_loan"
-            render={({ field }) => (
-              <FormItem className="flex items-center gap-3 space-y-0 rounded-lg border p-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <FormLabel className="font-normal cursor-pointer">
-                  Covered by loan
-                </FormLabel>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="notes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Notes</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Optional notes..."
-                    className="min-h-[80px] resize-none"
-                    {...field}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value || null)
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Optional notes..."
+                        className="min-h-[70px] resize-none"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         <DialogFooter className="gap-2 pt-4">

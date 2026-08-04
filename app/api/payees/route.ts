@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { payees, departments } from "@/lib/schema";
+import { payees } from "@/lib/schema";
 import { createPayeeSchema } from "@/lib/validations";
-import { eq, asc } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
+import { normalizeName } from "@/lib/server/reference";
 
 export async function GET() {
   const rows = await db
@@ -10,20 +11,12 @@ export async function GET() {
       id: payees.id,
       name: payees.name,
       phone: payees.phone,
-      department_id: payees.department_id,
-      department: departments.name,
       created_at: payees.created_at,
     })
     .from(payees)
-    .leftJoin(departments, eq(payees.department_id, departments.id))
     .orderBy(asc(payees.name));
 
-  const mapped = rows.map((r) => ({
-    ...r,
-    department: r.department ?? null,
-  }));
-
-  return NextResponse.json(mapped);
+  return NextResponse.json(rows);
 }
 
 export async function POST(request: NextRequest) {
@@ -37,22 +30,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const name = normalizeName(parsed.data.name);
+
+  const [existing] = await db
+    .select()
+    .from(payees)
+    .where(sql`lower(${payees.name}) = lower(${name})`)
+    .limit(1);
+  if (existing) {
+    return NextResponse.json(existing);
+  }
+
   const [row] = await db
     .insert(payees)
     .values({
-      name: parsed.data.name,
+      name,
       phone: parsed.data.phone,
-      department_id: parsed.data.department_id,
     })
     .onConflictDoNothing()
     .returning();
 
   if (!row) {
-    const [existing] = await db
+    const [fallback] = await db
       .select()
       .from(payees)
-      .where(eq(payees.name, parsed.data.name));
-    return NextResponse.json(existing);
+      .where(sql`lower(${payees.name}) = lower(${name})`)
+      .limit(1);
+    return NextResponse.json(fallback);
   }
 
   return NextResponse.json(row, { status: 201 });

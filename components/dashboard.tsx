@@ -123,7 +123,7 @@ export default function Dashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Expense Breakdown</CardTitle>
           <CardDescription className="text-xs">
-            Visual breakdown by category
+            Visual breakdown by section
           </CardDescription>
         </CardHeader>
         <CardContent className="px-2">
