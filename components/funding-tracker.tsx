@@ -12,6 +12,10 @@ import {
   ChevronRight,
   ArrowDownLeft,
   ArrowUpRight,
+  Wallet,
+  Scale,
+  Landmark,
+  Hourglass,
 } from "lucide-react";
 import {
   Card,
@@ -86,8 +90,16 @@ export default function FundingTracker() {
   const [addOpen, setAddOpen] = useState(false);
   const [editSource, setEditSource] = useState<FundingSource | null>(null);
 
-  const totalReceived = fundingSources.reduce((s, f) => s + f.received, 0);
-  const totalBalance = fundingSources.reduce((s, f) => s + f.balance, 0);
+  const active = fundingSources.filter((s) => !s.archived);
+  const totalReceived = active.reduce((s, f) => s + f.received, 0);
+  const totalInTransit = active.reduce((s, f) => s + f.in_transit, 0);
+  const totalDeployed = active.reduce((s, f) => s + f.outflows, 0);
+  const totalBalance = active.reduce((s, f) => s + f.balance, 0);
+  const expectedTotal = active.reduce((s, f) => s + (f.total_value ?? 0), 0);
+  const yetToReceive = active.reduce((s, f) => s + (f.remaining ?? 0), 0);
+  const deployedRows = [...active]
+    .filter((s) => s.outflows > 0)
+    .sort((a, b) => b.outflows - a.outflows);
 
   if (isLoading) {
     return (
@@ -100,6 +112,91 @@ export default function FundingTracker() {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          label="Deployed"
+          value={inr(totalDeployed)}
+          hint={`across ${deployedRows.length} source${
+            deployedRows.length === 1 ? "" : "s"
+          }`}
+          icon={<Wallet className="h-3.5 w-3.5 text-muted-foreground" />}
+        />
+        <StatCard
+          label="Received"
+          value={inr(totalReceived)}
+          hint={
+            totalInTransit > 0
+              ? `${inr(totalInTransit)} in transit`
+              : "money logged in"
+          }
+          icon={<ArrowDownLeft className="h-3.5 w-3.5 text-muted-foreground" />}
+        />
+        <StatCard
+          label="Balance"
+          value={inr(totalBalance)}
+          hint="received − deployed"
+          icon={<Scale className="h-3.5 w-3.5 text-muted-foreground" />}
+        />
+        <StatCard
+          label={expectedTotal > 0 ? "Yet to receive" : "Sources"}
+          value={expectedTotal > 0 ? inr(yetToReceive) : String(active.length)}
+          hint={
+            expectedTotal > 0
+              ? `of ${inr(expectedTotal)} expected`
+              : "active funding sources"
+          }
+          icon={
+            expectedTotal > 0 ? (
+              <Hourglass className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <Landmark className="h-3.5 w-3.5 text-muted-foreground" />
+            )
+          }
+        />
+      </div>
+
+      {deployedRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Deployment by source</CardTitle>
+            <CardDescription className="text-xs">
+              Share of the {inr(totalDeployed)} paid out so far
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {deployedRows.map((s) => {
+              const share = totalDeployed
+                ? (s.outflows / totalDeployed) * 100
+                : 0;
+              return (
+                <div key={s.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {s.name}
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] font-normal px-1.5 py-0"
+                      >
+                        {KIND_LABELS[s.kind] ?? s.kind}
+                      </Badge>
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {inr(s.outflows)} · {share.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${share}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -196,6 +293,31 @@ export default function FundingTracker() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+        <CardTitle className="text-xs font-medium">{label}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent className="px-3 pb-3">
+        <div className="text-lg font-bold tabular-nums">{value}</div>
+        {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
   );
 }
 

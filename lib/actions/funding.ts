@@ -1,7 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { fundingSources, fundingEntries, expenses } from "@/lib/schema";
+import {
+  fundingSources,
+  fundingEntries,
+  expenses,
+  loanPayments,
+  loans,
+} from "@/lib/schema";
 import { asc, eq, count, sql } from "drizzle-orm";
 import {
   createFundingSourceSchema,
@@ -35,7 +41,25 @@ export async function listFundingSources(): Promise<FundingSource[]> {
     .from(expenses)
     .where(sql`${expenses.funding_source_id} is not null`);
 
+  // Paid loan EMIs always count as outflows from the primary Cash source.
+  const paidEmis = await db
+    .select({
+      id: loanPayments.id,
+      loan_id: loanPayments.loan_id,
+      month: loanPayments.month,
+      amount: loanPayments.amount,
+      date: loanPayments.date,
+    })
+    .from(loanPayments)
+    .where(eq(loanPayments.paid, true));
+  const loanRows = await db
+    .select({ id: loans.id, name: loans.name })
+    .from(loans);
+  const loanName = new Map(loanRows.map((l) => [l.id, l.name]));
+  const cashSourceId = sources.find((s) => s.kind === "cash")?.id ?? null;
+
   return sources.map((s) => {
+    const isCash = cashSourceId != null && s.id === cashSourceId;
     const sourceEntries = entries.filter((e) => e.source_id === s.id);
     const sourceExpenses = linkedExpenses.filter(
       (e) => e.funding_source_id === s.id
@@ -51,11 +75,29 @@ export async function listFundingSources(): Promise<FundingSource[]> {
       .filter((e) => e.direction === "out")
       .reduce((sum, e) => sum + e.amount, 0);
     const expenseOut = sourceExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const outflows = manualOut + expenseOut;
+    const emiOut = isCash
+      ? paidEmis.reduce((sum, p) => sum + p.amount, 0)
+      : 0;
+    const outflows = manualOut + expenseOut + emiOut;
     const remaining =
       s.total_value != null ? s.total_value - received - inTransit : null;
 
+    const emiLedger: FundingLedgerItem[] = isCash
+      ? paidEmis.map((p) => ({
+          kind: "expense" as const,
+          id: `emi-${p.id}`,
+          amount: p.amount,
+          direction: "out" as const,
+          title: `EMI · ${loanName.get(p.loan_id) ?? "Loan"} (Month ${p.month})`,
+          date: p.date,
+          status: null,
+          method: null,
+          notes: null,
+        }))
+      : [];
+
     const ledger: FundingLedgerItem[] = [
+      ...emiLedger,
       ...sourceEntries.map((e) => ({
         kind: (e.direction === "in" ? "receipt" : "payout") as
           | "receipt"

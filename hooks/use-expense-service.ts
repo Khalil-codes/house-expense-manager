@@ -281,7 +281,10 @@ export function useExpenseService() {
 
   const deleteLoanMutation = useMutation({
     mutationFn: (id: string) => loanService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.loans }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.loans });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
+    },
   });
 
   const updateLoanNameMutation = useMutation({
@@ -300,7 +303,10 @@ export function useExpenseService() {
       paymentId: number;
       paid: boolean;
     }) => loanService.togglePayment(loanId, paymentId, paid),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.loans }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.loans });
+      qc.invalidateQueries({ queryKey: queryKeys.fundingSources });
+    },
   });
 
   const addPrepaymentMutation = useMutation({
