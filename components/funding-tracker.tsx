@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -12,10 +12,7 @@ import {
   ChevronRight,
   ArrowDownLeft,
   ArrowUpRight,
-  Wallet,
-  Scale,
-  Landmark,
-  Hourglass,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Card,
@@ -28,6 +25,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +78,12 @@ import {
   type FundingSource,
   type FundingLedgerItem,
 } from "@/hooks/use-expense-service";
+import { ExpenseChart } from "@/components/expense-chart";
+import {
+  computeLoanStats,
+  normalizeName,
+  type LoanStats,
+} from "@/lib/loan-utils";
 
 const KIND_LABELS: Record<string, string> = {
   sale_proceeds: "Sale proceeds",
@@ -73,12 +93,27 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 function inr(n: number) {
-  return `\u20B9${n.toLocaleString()}`;
+  return `\u20B9${Math.round(n).toLocaleString("en-IN")}`;
 }
 
-export default function FundingTracker() {
+function compact(n: number) {
+  const abs = Math.abs(n);
+  if (abs >= 1e7) return `\u20B9${(n / 1e7).toFixed(2)}Cr`;
+  if (abs >= 1e5) return `\u20B9${(n / 1e5).toFixed(1)}L`;
+  if (abs >= 1e3) return `\u20B9${(n / 1e3).toFixed(0)}K`;
+  return `\u20B9${Math.round(n)}`;
+}
+
+export default function FundingTracker({
+  autoOpenAddSource,
+  onAutoOpenHandled,
+}: {
+  autoOpenAddSource?: boolean;
+  onAutoOpenHandled?: () => void;
+} = {}) {
   const {
     fundingSources,
+    loans,
     isLoading,
     createFundingSource,
     updateFundingSource,
@@ -90,6 +125,14 @@ export default function FundingTracker() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editSource, setEditSource] = useState<FundingSource | null>(null);
+
+  useEffect(() => {
+    if (autoOpenAddSource) {
+      setAddOpen(true);
+      onAutoOpenHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenAddSource]);
 
   const active = fundingSources.filter((s) => !s.archived);
   const totalReceived = active.reduce((s, f) => s + f.received, 0);
@@ -105,6 +148,32 @@ export default function FundingTracker() {
     .filter((s) => s.outflows > 0)
     .sort((a, b) => b.outflows - a.outflows);
 
+  // Sources still owing money in (in transit or not started yet).
+  const incomingSources = active
+    .map((s) => ({
+      name: s.name,
+      inTransit: s.in_transit,
+      remaining: s.remaining ?? 0,
+      outstanding: s.in_transit + (s.remaining ?? 0),
+    }))
+    .filter((s) => s.outstanding > 0)
+    .sort((a, b) => b.outstanding - a.outstanding);
+
+  // Auto-link loan-kind funding sources to Loans-tab loans by matching name.
+  const loanStatsByName = new Map<string, LoanStats>(
+    loans.map((l) => [normalizeName(l.name), computeLoanStats(l)])
+  );
+  const debtStats = loans.map(computeLoanStats);
+  const totalBorrowed = debtStats.reduce((s, l) => s + l.borrowed, 0);
+  const totalRepaidPrincipal = debtStats.reduce(
+    (s, l) => s + l.principalPaid,
+    0
+  );
+  const totalOutstanding = debtStats.reduce((s, l) => s + l.outstanding, 0);
+  const totalInterestPaid = debtStats.reduce((s, l) => s + l.interestPaid, 0);
+  const repaidPercent =
+    totalBorrowed > 0 ? (totalRepaidPrincipal / totalBorrowed) * 100 : 0;
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center p-12">
@@ -115,109 +184,204 @@ export default function FundingTracker() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard
-          label="Deployed"
-          value={inr(totalDeployed)}
-          hint={`across ${deployedRows.length} source${
-            deployedRows.length === 1 ? "" : "s"
-          }`}
-          icon={<Wallet className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label="Received"
-          value={inr(totalReceived)}
-          hint={
-            totalInTransit > 0
-              ? `${inr(totalInTransit)} in transit`
-              : "money logged in"
-          }
-          icon={<ArrowDownLeft className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label="Balance"
-          value={inr(totalBalance)}
-          hint="received − deployed"
-          icon={<Scale className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label={expectedTotal > 0 ? "Yet to receive" : "Sources"}
-          value={expectedTotal > 0 ? inr(yetToReceive) : String(active.length)}
-          hint={
-            expectedTotal > 0
-              ? `of ${inr(expectedTotal)} expected`
-              : "active funding sources"
-          }
-          icon={
-            expectedTotal > 0 ? (
-              <Hourglass className="h-3.5 w-3.5 text-muted-foreground" />
-            ) : (
-              <Landmark className="h-3.5 w-3.5 text-muted-foreground" />
-            )
-          }
-        />
-      </div>
+    <div className="mx-auto max-w-2xl space-y-4">
+      {/* Overview — the money story in plain language */}
+      <Card>
+        <CardContent className="p-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <ArrowDownLeft className="h-3 w-3" />
+                </span>
+                Money in
+              </div>
+              <p className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight tabular-nums">
+                {compact(totalReceived)}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                received so far
+              </p>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <ArrowUpRight className="h-3 w-3" />
+                </span>
+                Money out
+              </div>
+              <p className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight tabular-nums">
+                {compact(totalDeployed)}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                spent so far
+              </p>
+            </div>
+          </div>
 
+          {expectedTotal > 0 && (
+            <div className="mt-5">
+              <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                <span className="text-muted-foreground">Funding progress</span>
+                <span className="font-medium tabular-nums">
+                  {compact(totalReceived)} of {compact(expectedTotal)}
+                </span>
+              </div>
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (totalReceived / expectedTotal) * 100
+                    )}%`,
+                  }}
+                />
+                <div
+                  className="h-full bg-primary/35"
+                  style={{
+                    width: `${Math.min(
+                      100 - (totalReceived / expectedTotal) * 100,
+                      (totalInTransit / expectedTotal) * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+              {incomingSources.length > 0 && (
+                <div className="mt-3">
+                  <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                    <span className="font-medium">Still to come</span>
+                    <span className="font-medium tabular-nums text-muted-foreground">
+                      {compact(totalInTransit + yetToReceive)}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {incomingSources.map((s) => (
+                      <PipelineRow
+                        key={s.name}
+                        swatch={
+                          s.inTransit > 0
+                            ? "bg-primary/35"
+                            : "bg-muted-foreground/25"
+                        }
+                        label={s.name}
+                        help={
+                          s.inTransit > 0 && s.remaining > 0
+                            ? "part in transit"
+                            : s.inTransit > 0
+                            ? "on its way"
+                            : "not started yet"
+                        }
+                        value={compact(s.outstanding)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {totalBalance !== 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-muted/50 px-3.5 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Unspent balance</p>
+                <p className="text-[11px] text-muted-foreground">
+                  received minus spent, tracked sources
+                </p>
+              </div>
+              <span className="shrink-0 text-[17px] font-semibold tabular-nums">
+                {compact(totalBalance)}
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Debt — repayment progress across all loans */}
+      {totalBorrowed > 0 && (
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium text-muted-foreground">
+                  Outstanding debt
+                </p>
+                <p className="mt-1 text-[28px] font-semibold leading-none tracking-tight tabular-nums">
+                  {compact(totalOutstanding)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  across {loans.length} loan{loans.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-[13px] font-medium text-muted-foreground">
+                  Repaid
+                </p>
+                <p className="mt-1 text-[17px] font-semibold tabular-nums text-primary">
+                  {compact(totalRepaidPrincipal)}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  of {compact(totalBorrowed)} borrowed
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.min(100, repaidPercent)}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>{repaidPercent.toFixed(0)}% principal cleared</span>
+                {totalInterestPaid > 0 && (
+                  <span>{compact(totalInterestPaid)} interest paid</span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Where the money went — donut by source */}
       {deployedRows.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Deployment by source</CardTitle>
-            <CardDescription className="text-xs">
-              Share of the {inr(totalDeployed)} paid out so far
+            <CardTitle className="text-base">Where the money went</CardTitle>
+            <CardDescription>
+              {compact(totalDeployed)} spent, split by source
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2.5">
-            {deployedRows.map((s) => {
-              const share = totalDeployed
-                ? (s.outflows / totalDeployed) * 100
-                : 0;
-              return (
-                <div key={s.id} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {s.name}
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] font-normal px-1.5 py-0"
-                      >
-                        {KIND_LABELS[s.kind] ?? s.kind}
-                      </Badge>
-                    </span>
-                    <span className="text-muted-foreground tabular-nums">
-                      {inr(s.outflows)} · {share.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${share}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <CardContent className="px-2">
+            <ExpenseChart
+              data={deployedRows.map((s) => ({
+                name: s.name,
+                value: s.outflows,
+              }))}
+            />
           </CardContent>
         </Card>
       )}
 
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Funding Sources</CardTitle>
-              <CardDescription className="text-xs">
-                Received {inr(totalReceived)} · Balance {inr(totalBalance)}
+        <CardHeader className="pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="text-base">Funding sources</CardTitle>
+              <CardDescription>
+                Received {compact(totalReceived)} · Balance{" "}
+                {compact(totalBalance)}
               </CardDescription>
             </div>
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="rounded-full">
                   <Plus className="mr-1 h-4 w-4" />
-                  Add Source
+                  Add source
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-md">
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Add Funding Source</DialogTitle>
                   <DialogDescription className="text-xs">
@@ -247,6 +411,11 @@ export default function FundingTracker() {
             <FundingSourceCard
               key={source.id}
               source={source}
+              loanStats={
+                source.kind === "loan"
+                  ? loanStatsByName.get(normalizeName(source.name))
+                  : undefined
+              }
               onEdit={() => setEditSource(source)}
               onDelete={() => deleteFundingSource(source.id)}
               onAddEntry={(v) =>
@@ -265,7 +434,7 @@ export default function FundingTracker() {
         open={!!editSource}
         onOpenChange={(open) => !open && setEditSource(null)}
       >
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Funding Source</DialogTitle>
             <DialogDescription className="text-xs">
@@ -303,32 +472,28 @@ export default function FundingTracker() {
   );
 }
 
-function StatCard({
+function PipelineRow({
+  swatch,
   label,
+  help,
   value,
-  hint,
-  icon,
 }: {
+  swatch: string;
   label: string;
+  help: string;
   value: string;
-  hint?: string;
-  icon: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-        <CardTitle className="text-xs font-medium">{label}</CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent className="px-3 pb-3">
-        <div className="text-lg font-bold tabular-nums">{value}</div>
-        {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2 text-[12px]">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${swatch}`} />
+      <span className="font-medium">{label}</span>
+      <span className="truncate text-muted-foreground">{help}</span>
+      <span className="ml-auto shrink-0 font-medium tabular-nums">{value}</span>
+    </div>
   );
 }
 
-function Stat({
+function MiniStat({
   label,
   value,
   strong,
@@ -338,17 +503,24 @@ function Stat({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={strong ? "font-semibold tabular-nums" : "tabular-nums"}>
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={`mt-0.5 truncate tabular-nums ${
+          strong ? "text-[15px] font-semibold" : "text-[15px] font-medium"
+        }`}
+      >
         {value}
-      </span>
+      </p>
     </div>
   );
 }
 
 function FundingSourceCard({
   source,
+  loanStats,
   onEdit,
   onDelete,
   onAddEntry,
@@ -356,6 +528,7 @@ function FundingSourceCard({
   onDeleteEntry,
 }: {
   source: FundingSource;
+  loanStats?: LoanStats;
   onEdit: () => void;
   onDelete: () => void;
   onAddEntry: (v: FundingEntryFormValues) => Promise<void>;
@@ -365,96 +538,208 @@ function FundingSourceCard({
   const [showLedger, setShowLedger] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<FundingLedgerItem | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   return (
     <Card className={source.archived ? "opacity-60" : undefined}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-sm flex items-center gap-2">
-              {source.name}
-              <Badge variant="outline" className="text-[10px] font-normal">
+          <div className="min-w-0">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-[15px]">
+              <span className="truncate">{source.name}</span>
+              <Badge className="shrink-0 text-[10px] font-normal">
                 {KIND_LABELS[source.kind] ?? source.kind}
               </Badge>
               {source.archived && (
-                <Badge variant="secondary" className="text-[10px]">
-                  Archived
-                </Badge>
+                <Badge className="shrink-0 text-[10px]">Archived</Badge>
               )}
             </CardTitle>
             {source.notes && (
-              <CardDescription className="text-xs mt-1">
-                {source.notes}
-              </CardDescription>
+              <CardDescription className="mt-1">{source.notes}</CardDescription>
             )}
           </div>
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onEdit}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-mr-1 h-9 w-9 shrink-0 rounded-full"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setConfirmOpen(true);
+                }}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardHeader>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {source.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the source and its manual entries. Linked expenses
+              stay, but lose this funding tag. This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
               disabled={deleting}
-              onClick={async () => {
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async (e) => {
+                e.preventDefault();
                 setDeleting(true);
                 try {
                   await onDelete();
+                  setConfirmOpen(false);
                 } finally {
                   setDeleting(false);
                 }
               }}
             >
-              {deleting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {source.kind === "cash" ? (
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <CardContent className="space-y-3">
+        {loanStats ? (
           <>
-            <Stat label="Deployed" value={inr(source.outflows)} strong />
-            <p className="text-[10px] text-muted-foreground">
-              Cash is treated as a pool — balance isn&apos;t tracked.
-            </p>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[12px] font-medium">Loan repayment</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {loanStats.principalPercent.toFixed(0)}% cleared
+                </span>
+              </div>
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{
+                    width: `${Math.min(100, loanStats.principalPercent)}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-2.5 grid grid-cols-3 gap-2">
+                <MiniStat label="Borrowed" value={inr(loanStats.borrowed)} />
+                <MiniStat label="Repaid" value={inr(loanStats.principalPaid)} />
+                <MiniStat
+                  label="Outstanding"
+                  value={inr(loanStats.outstanding)}
+                  strong
+                />
+              </div>
+            </div>
+            {source.outflows > 0 && (
+              <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium">Deployed into house</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    spent from this loan
+                  </p>
+                </div>
+                <span className="shrink-0 text-[15px] font-semibold tabular-nums">
+                  {inr(source.outflows)}
+                </span>
+              </div>
+            )}
           </>
+        ) : source.kind === "cash" ? (
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Spent from cash
+              </p>
+              <p className="mt-0.5 text-[22px] font-semibold leading-none tabular-nums">
+                {inr(source.outflows)}
+              </p>
+            </div>
+            <p className="max-w-[45%] text-right text-[11px] text-muted-foreground">
+              Cash is a pool — balance isn&apos;t tracked
+            </p>
+          </div>
         ) : (
           <>
-            {source.total_value != null && (
-              <Stat label="Total value" value={inr(source.total_value)} />
+            {source.total_value != null && source.total_value > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                  <span className="text-muted-foreground">Received</span>
+                  <span className="font-medium tabular-nums">
+                    {inr(source.received)} of {inr(source.total_value)}
+                  </span>
+                </div>
+                <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (source.received / source.total_value) * 100
+                      )}%`,
+                    }}
+                  />
+                  <div
+                    className="h-full bg-primary/35"
+                    style={{
+                      width: `${Math.min(
+                        100 - (source.received / source.total_value) * 100,
+                        (source.in_transit / source.total_value) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
             )}
-            <Stat label="Received" value={inr(source.received)} />
-            {source.in_transit > 0 && (
-              <Stat label="In transit" value={inr(source.in_transit)} />
+            <div className="grid grid-cols-3 gap-2">
+              <MiniStat label="Received" value={inr(source.received)} />
+              <MiniStat label="Spent" value={inr(source.outflows)} />
+              <MiniStat label="Balance" value={inr(source.balance)} strong />
+            </div>
+            {(source.in_transit > 0 ||
+              (source.remaining != null && source.remaining > 0)) && (
+              <p className="text-[11px] text-muted-foreground">
+                {source.in_transit > 0 &&
+                  `${inr(source.in_transit)} in transit`}
+                {source.in_transit > 0 &&
+                  source.remaining != null &&
+                  source.remaining > 0 &&
+                  " · "}
+                {source.remaining != null &&
+                  source.remaining > 0 &&
+                  `${inr(source.remaining)} yet to receive`}
+              </p>
             )}
-            {source.remaining != null && (
-              <Stat label="Yet to receive" value={inr(source.remaining)} />
-            )}
-            <Stat label="Spent from source" value={inr(source.outflows)} />
-            <Stat label="Balance" value={inr(source.balance)} strong />
           </>
         )}
 
         <div className="flex items-center gap-2 pt-2">
           <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="h-8 text-xs">
-                <Plus className="mr-1 h-3.5 w-3.5" />
+              <Button size="sm" variant="secondary" className="h-10 rounded-full">
+                <Plus className="mr-1 h-4 w-4" />
                 Add entry
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[95vw] sm:max-w-md">
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Add Entry — {source.name}</DialogTitle>
                 <DialogDescription className="text-xs">
@@ -474,13 +759,13 @@ function FundingSourceCard({
           <Button
             size="sm"
             variant="ghost"
-            className="h-8 text-xs"
+            className="h-10 rounded-full"
             onClick={() => setShowLedger((s) => !s)}
           >
             {showLedger ? (
-              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+              <ChevronDown className="mr-1 h-4 w-4" />
             ) : (
-              <ChevronRight className="mr-1 h-3.5 w-3.5" />
+              <ChevronRight className="mr-1 h-4 w-4" />
             )}
             Ledger ({source.ledger.length})
           </Button>
@@ -499,7 +784,7 @@ function FundingSourceCard({
         open={!!editEntry}
         onOpenChange={(open) => !open && setEditEntry(null)}
       >
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Entry — {source.name}</DialogTitle>
             <DialogDescription className="text-xs">
@@ -540,24 +825,30 @@ function LedgerList({
     );
   }
   return (
-    <div className="mt-2 divide-y rounded-md border">
+    <div className="mt-2 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60">
       {items.map((item) => {
         const isIn = item.direction === "in";
         const isManual = item.id.startsWith("entry-");
         return (
           <div
             key={item.id}
-            className="flex items-center justify-between gap-2 px-3 py-2"
+            className="flex items-center justify-between gap-2 px-3 py-2.5"
           >
-            <div className="flex items-center gap-2 min-w-0">
-              {isIn ? (
-                <ArrowDownLeft className="h-4 w-4 shrink-0 text-emerald-600" />
-              ) : (
-                <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              )}
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                  isIn ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {isIn ? (
+                  <ArrowDownLeft className="h-4 w-4" />
+                ) : (
+                  <ArrowUpRight className="h-4 w-4" />
+                )}
+              </span>
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium">{item.title}</p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="truncate text-[13px] font-medium">{item.title}</p>
+                <p className="text-[11px] text-muted-foreground">
                   {new Date(item.date).toLocaleDateString("en-IN", {
                     day: "numeric",
                     month: "short",
@@ -568,36 +859,43 @@ function LedgerList({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex shrink-0 items-center gap-1">
               <span
-                className={`text-xs tabular-nums ${
-                  isIn ? "text-emerald-600" : "text-muted-foreground"
+                className={`text-[13px] tabular-nums ${
+                  isIn ? "font-semibold text-primary" : "text-muted-foreground"
                 }`}
               >
-                {isIn ? "+" : "-"}
+                {isIn ? "+" : "−"}
                 {inr(item.amount)}
               </span>
               {isManual && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onEditEntry(item)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive hover:text-destructive"
-                    onClick={() =>
-                      onDeleteEntry(parseInt(item.id.replace("entry-", "")))
-                    }
-                  >
-                    <Trash className="h-3 w-3" />
-                  </Button>
-                </>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEditEntry(item)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() =>
+                        onDeleteEntry(parseInt(item.id.replace("entry-", "")))
+                      }
+                    >
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
@@ -741,7 +1039,7 @@ function FundingSourceForm({
   );
 }
 
-function FundingEntryForm({
+export function FundingEntryForm({
   entry,
   onSubmit,
   onCancel,

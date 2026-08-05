@@ -18,6 +18,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useIsMobile } from "@/components/ui/use-mobile";
 import type { Expense } from "@/lib/api/expense-service";
 import { ExpenseFilters, type ViewMode } from "@/components/expense-filters";
 import { ExpenseCard } from "@/components/expense-card";
@@ -72,6 +74,8 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [loanOnly, setLoanOnly] = useState(false);
+  const isMobile = useIsMobile();
+  const effectiveView: ViewMode = isMobile ? "grid" : viewMode;
 
   const uniquePayees = useMemo(() => {
     const set = new Set(expenses.map((e) => e.paid_to).filter(Boolean));
@@ -262,9 +266,15 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
 
   if (expenses.length === 0) {
     return (
-      <p className="text-center text-sm text-muted-foreground py-8">
-        No expenses recorded
-      </p>
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 py-14 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <Receipt className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <p className="mt-3 text-sm font-medium">No expenses yet</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          Tap “Add” to record your first one.
+        </p>
+      </div>
     );
   }
 
@@ -304,11 +314,8 @@ export function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
         hasActiveFilters={hasActiveFilters}
       />
 
-      {viewMode === "table" ? (
-        <TableView
-          table={table}
-          columns={columns}
-        />
+      {effectiveView === "table" ? (
+        <TableView table={table} columns={columns} />
       ) : (
         <GridView
           rows={filteredRows.map((r) => r.original)}
@@ -333,7 +340,7 @@ function TableView({
   columns: ColumnDef<Expense>[];
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="overflow-x-auto rounded-2xl border border-border/60">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

@@ -4,15 +4,20 @@ import {
   Edit,
   Trash,
   Loader2,
-  Calendar,
   User,
   CreditCard,
-  MapPin,
   Wallet,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Expense } from "@/lib/api/expense-service";
 
 interface ExpenseCardProps {
@@ -30,109 +35,115 @@ export function ExpenseCard({
   isDeleting,
   disabled,
 }: ExpenseCardProps) {
+  const dateLabel = new Date(expense.date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  const showMethod =
+    expense.payment_method && expense.payment_method !== "Cash";
+
   return (
-    <Card className="transition-colors hover:bg-muted/20">
-      <CardContent className="p-0">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-lg font-bold tabular-nums">
-            {"\u20B9"}{expense.amount.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            <span>
-              {new Date(expense.date).toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
+    <Card className="p-3.5 transition-colors">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-snug">
+              {expense.description}
+            </p>
+            <span className="shrink-0 whitespace-nowrap text-[15px] font-semibold tabular-nums">
+              {"\u20B9"}
+              {expense.amount.toLocaleString("en-IN")}
             </span>
           </div>
-        </div>
 
-        <div className="px-4 pb-3">
-          <p className="text-sm font-medium leading-snug">
-            {expense.description}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 px-4 pb-3">
-          {expense.area && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-              <MapPin className="h-3 w-3" />
-              {expense.area}
-            </span>
-          )}
-          {expense.paid_to && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-              <User className="h-3 w-3" />
-              {expense.paid_to}
-            </span>
-          )}
-          {expense.payment_method && expense.payment_method !== "Cash" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-              <CreditCard className="h-3 w-3" />
-              {expense.payment_method}
-            </span>
-          )}
-          {expense.funding_source && (
-            <Badge
-              variant="secondary"
-              className="gap-1 text-[10px] px-2 py-0.5 font-normal"
-            >
-              <Wallet className="h-3 w-3" />
-              {expense.funding_source}
-            </Badge>
-          )}
-        </div>
-
-        {expense.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-            {expense.tags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"
-              >
-                #{t}
-              </span>
-            ))}
+          <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <span className="tabular-nums">{dateLabel}</span>
+            {expense.area && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="truncate font-medium text-foreground/70">
+                  {expense.area}
+                </span>
+              </>
+            )}
           </div>
-        )}
 
-        {expense.notes && (
-          <div className="px-4 pb-3">
-            <p className="text-xs text-muted-foreground/80 line-clamp-2 italic">
+          {(expense.paid_to || showMethod || expense.funding_source) && (
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
+              {expense.paid_to && (
+                <span className="inline-flex items-center gap-1">
+                  <User className="h-3 w-3 shrink-0" />
+                  {expense.paid_to}
+                </span>
+              )}
+              {expense.funding_source && (
+                <span className="inline-flex items-center gap-1">
+                  <Wallet className="h-3 w-3 shrink-0" />
+                  {expense.funding_source}
+                </span>
+              )}
+              {showMethod && (
+                <span className="inline-flex items-center gap-1">
+                  <CreditCard className="h-3 w-3 shrink-0" />
+                  {expense.payment_method}
+                </span>
+              )}
+            </div>
+          )}
+
+          {expense.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {expense.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {expense.notes && (
+            <p className="mt-2 line-clamp-2 text-[12px] italic text-muted-foreground/80">
               {expense.notes}
             </p>
-          </div>
-        )}
-
-        <div className="flex items-center justify-end gap-1 border-t px-3 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-3 text-xs"
-            disabled={disabled}
-            onClick={() => onEdit(expense)}
-          >
-            <Edit className="mr-1.5 h-3 w-3" />
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-3 text-xs text-destructive hover:text-destructive"
-            disabled={disabled}
-            onClick={() => onDelete(expense.id)}
-          >
-            {isDeleting ? (
-              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-            ) : (
-              <Trash className="mr-1.5 h-3 w-3" />
-            )}
-            Delete
-          </Button>
+          )}
         </div>
-      </CardContent>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-mr-1 -mt-0.5 h-8 w-8 shrink-0 rounded-full text-muted-foreground"
+              disabled={disabled}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MoreHorizontal className="h-4 w-4" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(expense)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(expense.id)}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </Card>
   );
 }

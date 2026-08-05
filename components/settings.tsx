@@ -9,7 +9,7 @@ import {
 } from "@/hooks/use-expense-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -26,17 +26,44 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  Tags,
-  Users,
-  MapPin,
-  Merge,
-} from "lucide-react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Pencil, Trash2, Loader2, Merge, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
+
+function SectionHeader({
+  title,
+  count,
+  onAdd,
+}: {
+  title: string;
+  count: number;
+  onAdd?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between px-1">
+      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {title} · {count}
+      </h3>
+      {onAdd && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-mr-2 h-8 rounded-full text-primary hover:text-primary"
+          onClick={onAdd}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          Add
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export default function Settings() {
   const {
@@ -57,15 +84,15 @@ export default function Settings() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p>Loading settings...</p>
+      <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+        <Loader2 className="mb-4 h-7 w-7 animate-spin" />
+        <p className="text-sm">Loading settings…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-2xl space-y-7">
       <PayeeSection
         payees={payees}
         onCreate={createPayee}
@@ -195,92 +222,88 @@ function PayeeSection({
   );
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Payees</CardTitle>
-            <span className="text-xs text-muted-foreground">({payees.length})</span>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              resetForm();
-              setAddOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {payees.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
+    <section className="space-y-2">
+      <SectionHeader
+        title="Payees"
+        count={payees.length}
+        onAdd={() => {
+          resetForm();
+          setAddOpen(true);
+        }}
+      />
+      <Card className="overflow-hidden">
+        {payees.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
             No payees yet
           </p>
-        )}
-        {payees.map((payee) => (
-          <div
-            key={payee.id}
-            className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{payee.name}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {payee.phone || "No phone"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  setMergeItem(payee);
-                  setMergeTarget(null);
-                }}
+        ) : (
+          <div className="divide-y divide-border/60">
+            {payees.map((payee) => (
+              <div
+                key={payee.id}
+                className="flex min-h-[52px] items-center justify-between gap-2 px-4 py-2"
               >
-                <Merge className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  setEditItem(payee);
-                  setForm({
-                    name: payee.name,
-                    phone: payee.phone ?? "",
-                  });
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                disabled={deletingId !== null}
-                onClick={() => handleDelete(payee.id)}
-              >
-                {deletingId === payee.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{payee.name}</p>
+                  <p className="truncate text-[12px] text-muted-foreground">
+                    {payee.phone || "No phone"}
+                  </p>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-mr-1.5 h-9 w-9 shrink-0 rounded-full"
+                      disabled={deletingId === payee.id}
+                    >
+                      {deletingId === payee.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MoreHorizontal className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditItem(payee);
+                        setForm({ name: payee.name, phone: payee.phone ?? "" });
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setMergeItem(payee);
+                        setMergeTarget(null);
+                      }}
+                    >
+                      <Merge className="mr-2 h-4 w-4" />
+                      Merge
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => handleDelete(payee.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
           </div>
-        ))}
-      </CardContent>
+        )}
+      </Card>
 
       {/* Merge dialog */}
       <Dialog open={!!mergeItem} onOpenChange={(o) => !o && setMergeItem(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Merge Payee</DialogTitle>
+            <DialogTitle>Merge payee</DialogTitle>
             <DialogDescription>
               Move all expenses from{" "}
               <span className="font-medium">{mergeItem?.name}</span> into another
@@ -292,7 +315,7 @@ function PayeeSection({
             onValueChange={(v) => setMergeTarget(parseInt(v))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Merge into..." />
+              <SelectValue placeholder="Merge into…" />
             </SelectTrigger>
             <SelectContent>
               {payees
@@ -321,7 +344,7 @@ function PayeeSection({
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>New Payee</DialogTitle>
+            <DialogTitle>New payee</DialogTitle>
             <DialogDescription>Add someone you make payments to.</DialogDescription>
           </DialogHeader>
           {payeeFormFields}
@@ -338,7 +361,7 @@ function PayeeSection({
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Payee</DialogTitle>
+            <DialogTitle>Edit payee</DialogTitle>
           </DialogHeader>
           {payeeFormFields}
           <DialogFooter>
@@ -349,7 +372,7 @@ function PayeeSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }
 
@@ -426,72 +449,73 @@ function AreaSection({
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Areas</CardTitle>
-            <span className="text-xs text-muted-foreground">({areas.length})</span>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setName("");
-              setAddOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {areas.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
+    <section className="space-y-2">
+      <SectionHeader
+        title="Areas"
+        count={areas.length}
+        onAdd={() => {
+          setName("");
+          setAddOpen(true);
+        }}
+      />
+      <Card className="overflow-hidden">
+        {areas.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
             No areas yet
           </p>
-        )}
-        {areas.map((area) => (
-          <div
-            key={area.id}
-            className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-          >
-            <span className="text-sm font-medium truncate">{area.name}</span>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  setEditItem(area);
-                  setName(area.name);
-                }}
+        ) : (
+          <div className="divide-y divide-border/60">
+            {areas.map((area) => (
+              <div
+                key={area.id}
+                className="flex min-h-[52px] items-center justify-between gap-2 px-4 py-2"
               >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                disabled={deletingId !== null}
-                onClick={() => handleDelete(area.id)}
-              >
-                {deletingId === area.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
+                <span className="truncate text-sm font-medium">{area.name}</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-mr-1.5 h-9 w-9 shrink-0 rounded-full"
+                      disabled={deletingId === area.id}
+                    >
+                      {deletingId === area.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MoreHorizontal className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditItem(area);
+                        setName(area.name);
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => handleDelete(area.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
           </div>
-        ))}
-      </CardContent>
+        )}
+      </Card>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>New Area</DialogTitle>
+            <DialogTitle>New area</DialogTitle>
             <DialogDescription>
               Classify expenses by area of the house.
             </DialogDescription>
@@ -514,7 +538,7 @@ function AreaSection({
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Area</DialogTitle>
+            <DialogTitle>Edit area</DialogTitle>
           </DialogHeader>
           <Input
             placeholder="Area name"
@@ -530,7 +554,7 @@ function AreaSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }
 
@@ -578,15 +602,9 @@ function TagSection({
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Tags className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-base">Tags</CardTitle>
-          <span className="text-xs text-muted-foreground">({tags.length})</span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <section className="space-y-2">
+      <SectionHeader title="Tags" count={tags.length} />
+      <Card className="p-4">
         <div className="flex gap-2">
           <Input
             placeholder="New tag"
@@ -594,7 +612,12 @@ function TagSection({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
-          <Button onClick={handleAdd} disabled={saving || !name.trim()}>
+          <Button
+            onClick={handleAdd}
+            disabled={saving || !name.trim()}
+            size="icon"
+            className="shrink-0"
+          >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -603,22 +626,22 @@ function TagSection({
           </Button>
         </div>
         {tags.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-2">
+          <p className="pt-4 text-center text-sm text-muted-foreground">
             No tags yet
           </p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 pt-3">
             {tags.map((tag) => (
               <span
                 key={tag.id}
-                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[12px] font-medium text-primary"
               >
-                {tag.name}
+                #{tag.name}
                 <button
                   type="button"
                   disabled={deletingId !== null}
                   onClick={() => handleDelete(tag.id)}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="transition-colors hover:text-destructive"
                 >
                   {deletingId === tag.id ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -630,7 +653,7 @@ function TagSection({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </Card>
+    </section>
   );
 }

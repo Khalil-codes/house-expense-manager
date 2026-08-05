@@ -65,12 +65,15 @@ export function TagInput({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((tag) => (
-            <Badge key={tag} variant="secondary" className="gap-1 font-normal">
-              {tag}
+            <Badge
+              key={tag}
+              className="gap-1 bg-primary/10 py-1 font-medium text-primary"
+            >
+              #{tag}
               <button
                 type="button"
                 onClick={() => remove(tag)}
-                className="rounded-full outline-none hover:text-destructive"
+                className="rounded-full outline-none transition-colors hover:text-destructive"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -115,6 +118,7 @@ export function TagInput({
                   <CommandItem
                     value={`__new__${query}`}
                     onSelect={() => add(query)}
+                    className="py-2.5 text-primary aria-selected:text-primary"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add &ldquo;{query}&rdquo;
@@ -127,6 +131,7 @@ export function TagInput({
                     key={s}
                     value={s}
                     onSelect={() => (has(s) ? remove(s) : add(s))}
+                    className="py-2.5"
                   >
                     <Check
                       className={cn(

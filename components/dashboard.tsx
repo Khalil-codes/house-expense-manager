@@ -7,26 +7,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
-  Layers,
-  Users,
   Loader2,
-  CalendarClock,
-  TrendingUp,
-  Receipt,
-  Landmark,
   ChevronLeft,
   ChevronRight,
+  Landmark,
+  CheckCircle2,
+  AlertCircle,
+  Wallet,
+  Receipt,
+  Hammer,
+  ArrowDownLeft,
+  PlusCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
 import {
-  useExpenseService,
-  type Expense,
-} from "@/hooks/use-expense-service";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useExpenseService, type Expense } from "@/hooks/use-expense-service";
+import type { FundingSource } from "@/hooks/use-expense-service";
 import { ExpenseChart } from "@/components/expense-chart";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
+import { FundingEntryForm } from "@/components/funding-tracker";
+import { computeLoanStats } from "@/lib/loan-utils";
+import { toast } from "sonner";
+import type { FundingEntryFormValues } from "@/lib/validations";
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
@@ -67,7 +85,11 @@ const monthRange = (keys: string[]) => {
   return out;
 };
 
-export default function Dashboard() {
+export default function Dashboard({
+  onQuickAction,
+}: {
+  onQuickAction?: (tab: string, action?: string) => void;
+} = {}) {
   const {
     expenses,
     construction,
@@ -77,7 +99,9 @@ export default function Dashboard() {
     isLoading,
     grandTotal,
     adjustedTotal,
+    addFundingEntry,
   } = useExpenseService();
+  const [recordOpen, setRecordOpen] = useState(false);
 
   const constructionTotal = construction.reduce((s, e) => s + e.amount, 0);
   const propertyTotal = property.reduce((s, e) => s + e.amount, 0);
@@ -103,10 +127,6 @@ export default function Dashboard() {
   const saleSources = fundingSources.filter(
     (s) => !s.archived && s.kind === "sale_proceeds"
   );
-  const saleReceived = saleSources.reduce((s, f) => s + f.received, 0);
-  const saleDeployed = saleSources.reduce((s, f) => s + f.outflows, 0);
-  const saleValue = saleReceived > 0 ? saleReceived : saleDeployed;
-  const saleHint = saleReceived > 0 ? "received" : "funded from sales";
 
   // ---- Monthly aggregation ----
   const byMonth = new Map<
@@ -135,7 +155,8 @@ export default function Dashboard() {
 
   let peakMonth: { key: string; total: number } | null = null;
   for (const [key, v] of byMonth) {
-    if (!peakMonth || v.total > peakMonth.total) peakMonth = { key, total: v.total };
+    if (!peakMonth || v.total > peakMonth.total)
+      peakMonth = { key, total: v.total };
   }
 
   const biggest = expenses.reduce(
@@ -152,224 +173,518 @@ export default function Dashboard() {
     .reduce((s, f) => s + f.outflows, 0);
   const loanPct = totalDeployed ? (loanFunded / totalDeployed) * 100 : 0;
 
-  // ---- Spend by area ----
-  const areaMap = new Map<string, number>();
-  for (const e of expenses) {
-    const key = e.area || "Unassigned";
-    areaMap.set(key, (areaMap.get(key) ?? 0) + e.amount);
-  }
-  const areaBreakdown = [...areaMap.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-  const topAreas = areaBreakdown.slice(0, 5);
-  const areaMax = Math.max(...topAreas.map((a) => a.value), 1);
+  // ---- Loans & debt ----
+  const loanStatsAll = loans.map(computeLoanStats);
+  const totalBorrowed = loanStatsAll.reduce((s, l) => s + l.borrowed, 0);
+  const totalRepaidPrincipal = loanStatsAll.reduce(
+    (s, l) => s + l.principalPaid,
+    0
+  );
+  const totalOutstanding = loanStatsAll.reduce((s, l) => s + l.outstanding, 0);
+  const repaidPercent =
+    totalBorrowed > 0 ? (totalRepaidPrincipal / totalBorrowed) * 100 : 0;
+  const nextPayment = loans
+    .flatMap((l) =>
+      l.payments
+        .filter((p) => !p.paid)
+        .map((p) => ({ date: p.date, amount: p.amount, loanName: l.name }))
+    )
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const nextOverdue = nextPayment
+    ? new Date(nextPayment.date).getTime() < todayStart
+    : false;
 
-  // ---- Top payees ----
-  const payeeMap = new Map<string, number>();
-  for (const e of expenses) {
-    const p = e.paid_to?.trim();
-    if (p) payeeMap.set(p, (payeeMap.get(p) ?? 0) + e.amount);
-  }
-  const allPayees = [...payeeMap.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-  const topPayees = allPayees.slice(0, 5);
-  const payeeMax = Math.max(...topPayees.map((p) => p.value), 1);
+  // ---- Sales proceeds ----
+  const saleTotalProceeds = saleSources.reduce(
+    (s, f) => s + (f.total_value ?? 0),
+    0
+  );
+  const saleAvailable = saleSources.reduce((s, f) => s + f.balance, 0);
+  const saleReceived = saleSources.reduce((s, f) => s + f.received, 0);
+  const saleInTransit = saleSources.reduce((s, f) => s + f.in_transit, 0);
+  const saleYetToReceive = saleSources.reduce(
+    (s, f) => s + (f.remaining ?? 0),
+    0
+  );
+  const salePctReceived = saleTotalProceeds
+    ? (saleReceived / saleTotalProceeds) * 100
+    : 0;
+  const salePctInTransit = saleTotalProceeds
+    ? (saleInTransit / saleTotalProceeds) * 100
+    : 0;
 
-  // ---- Charts ----
-  const sectionChart = [
-    { name: "Construction", value: constructionTotal },
-    { name: "Property", value: propertyTotal },
-    { name: "Loan Payments", value: loanPaid },
-  ];
+  // ---- Composition ----
+  const compositionTotal = constructionTotal + propertyTotal + loanPaid;
+  const composition = [
+    {
+      label: "Construction",
+      value: constructionTotal,
+      color: "hsl(var(--chart-1))",
+    },
+    {
+      label: "Property",
+      value: propertyTotal,
+      color: "hsl(var(--chart-2))",
+    },
+    {
+      label: "Loan paid",
+      value: loanPaid,
+      color: "hsl(var(--chart-3))",
+    },
+  ].filter((s) => s.value > 0);
+
+  // ---- Funding chart ----
   const fundingChart = fundingSources
     .filter((s) => !s.archived && s.outflows > 0)
     .map((s) => ({ name: s.name, value: s.outflows }));
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p>Loading dashboard data...</p>
+      <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+        <Loader2 className="mb-4 h-7 w-7 animate-spin" />
+        <p className="text-sm">Loading dashboard…</p>
       </div>
     );
   }
 
+  const insights = [
+    {
+      label: "Avg / month",
+      value: compact(avgPerMonth),
+      hint: `over ${activeMonths} month${activeMonths === 1 ? "" : "s"}`,
+    },
+    {
+      label: "Peak month",
+      value: peakMonth ? compact(peakMonth.total) : "—",
+      hint: peakMonth ? fmtMonth(peakMonth.key) : "no data",
+    },
+    {
+      label: "This month",
+      value: compact(thisMonthAmt),
+      hint: `${thisMonth.length} expense${thisMonth.length === 1 ? "" : "s"}`,
+    },
+    {
+      label: "Biggest expense",
+      value: compact(biggest.amount),
+      hint: biggest.description || "—",
+    },
+    {
+      label: "Loan-funded",
+      value: `${loanPct.toFixed(0)}%`,
+      hint: `${compact(loanFunded)} of spend`,
+    },
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* Hero summary */}
+    <div className="mx-auto max-w-2xl space-y-4">
+      {/* Hero */}
       <Card>
-        <CardContent className="pt-5">
-          <p className="text-xs text-muted-foreground">Total spent</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight">
+        <CardContent className="pt-6">
+          <p className="text-[13px] font-medium text-muted-foreground">
+            Total spent
+          </p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-[40px] font-semibold leading-none tracking-tight tabular-nums">
               {inr(adjustedTotal)}
             </span>
-            {coveredByLoan > 0 && (
-              <span className="text-xs text-muted-foreground">
-                +{compact(coveredByLoan)} via loan
-              </span>
-            )}
           </div>
+          {coveredByLoan > 0 && (
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
+              +{compact(coveredByLoan)} covered via loan
+            </p>
+          )}
 
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4 sm:grid-cols-3 lg:grid-cols-5">
-            <MiniStat
-              label="Construction"
-              value={compact(constructionTotal)}
-              hint={`${grandTotal ? ((constructionTotal / grandTotal) * 100).toFixed(0) : 0}% of total`}
-            />
-            <MiniStat
-              label="Property"
-              value={compact(propertyTotal)}
-              hint={`${grandTotal ? ((propertyTotal / grandTotal) * 100).toFixed(0) : 0}% of total`}
-            />
-            <MiniStat
-              label="Loan paid"
-              value={compact(loanPaid)}
-              hint={`${loans.length} loan${loans.length === 1 ? "" : "s"}`}
-            />
-            {saleSources.length > 0 && (
-              <MiniStat
-                label="Sale proceeds"
-                value={compact(saleValue)}
-                hint={saleHint}
-              />
-            )}
-            <MiniStat
-              label="This month"
-              value={compact(thisMonthAmt)}
-              hint={`${thisMonth.length} expense${thisMonth.length === 1 ? "" : "s"}`}
-            />
+          {composition.length > 0 && (
+            <div className="mt-5">
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                {composition.map((s) => (
+                  <div
+                    key={s.label}
+                    style={{
+                      width: `${(s.value / compositionTotal) * 100}%`,
+                      backgroundColor: s.color,
+                    }}
+                    className="h-full first:rounded-l-full last:rounded-r-full"
+                  />
+                ))}
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {composition.map((s) => (
+                  <div key={s.label} className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span className="truncate text-[11px] font-medium text-muted-foreground">
+                        {s.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[15px] font-semibold tabular-nums">
+                      {compact(s.value)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {grandTotal
+                        ? ((s.value / compositionTotal) * 100).toFixed(0)
+                        : 0}
+                      %
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <QuickAction
+          icon={Hammer}
+          label="Add construction expense"
+          onClick={() => onQuickAction?.("construction", "add")}
+        />
+        <QuickAction
+          icon={ArrowDownLeft}
+          label="Record money in"
+          onClick={() => setRecordOpen(true)}
+        />
+      </div>
+
+      <RecordFundingDialog
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        sources={fundingSources.filter((s) => !s.archived)}
+        onSubmit={async (sourceId, values) => {
+          await addFundingEntry({ sourceId, ...values });
+          toast.success("Entry recorded");
+          setRecordOpen(false);
+        }}
+      />
+
+      {/* Insights */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Insights</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
+            {insights.map((s) => (
+              <div key={s.label} className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {s.label}
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">
+                  {s.value}
+                </p>
+                {s.hint && (
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {s.hint}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Insight strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="Avg / month"
-          value={compact(avgPerMonth)}
-          hint={`over ${activeMonths} month${activeMonths === 1 ? "" : "s"}`}
-          icon={<CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label="Peak month"
-          value={peakMonth ? compact(peakMonth.total) : "—"}
-          hint={peakMonth ? fmtMonth(peakMonth.key) : "no data"}
-          icon={<TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label="Biggest expense"
-          value={compact(biggest.amount)}
-          hint={biggest.description || "—"}
-          icon={<Receipt className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-        <StatCard
-          label="Loan-funded"
-          value={`${loanPct.toFixed(0)}%`}
-          hint={`${compact(loanFunded)} of spend`}
-          icon={<Landmark className="h-3.5 w-3.5 text-muted-foreground" />}
-        />
-      </div>
+      {/* Sales proceeds */}
+      {saleTotalProceeds > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Wallet className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <CardTitle className="text-base">Sales proceeds</CardTitle>
+                <CardDescription>
+                  {saleSources.length} source
+                  {saleSources.length === 1 ? "" : "s"}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] font-medium text-muted-foreground">
+                Total proceeds
+              </span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {inr(saleTotalProceeds)}
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div>
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                {salePctReceived > 0 && (
+                  <div
+                    className="h-full bg-primary"
+                    style={{ width: `${salePctReceived}%` }}
+                  />
+                )}
+                {salePctInTransit > 0 && (
+                  <div
+                    className="h-full bg-amber-400 dark:bg-amber-500"
+                    style={{ width: `${salePctInTransit}%` }}
+                  />
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Received
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[15px] font-semibold tabular-nums">
+                    {compact(saleReceived)}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      In transit
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[15px] font-semibold tabular-nums">
+                    {compact(saleInTransit)}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" />
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Remaining
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[15px] font-semibold tabular-nums">
+                    {compact(saleYetToReceive)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Available balance */}
+            <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2.5">
+              <span className="text-[13px] font-medium">Available balance</span>
+              <span className="text-[15px] font-semibold tabular-nums">
+                {inr(saleAvailable)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loans & debt */}
+      {loans.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Landmark className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <CardTitle className="text-base">Loans &amp; debt</CardTitle>
+                <CardDescription>
+                  {loans.length} loan{loans.length === 1 ? "" : "s"}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] font-medium text-muted-foreground">
+                Outstanding
+              </span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {inr(totalOutstanding)}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.min(100, repaidPercent)}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>{repaidPercent.toFixed(0)}% repaid</span>
+                <span className="tabular-nums">
+                  {compact(totalRepaidPrincipal)} of {compact(totalBorrowed)}
+                </span>
+              </div>
+            </div>
+
+            {nextPayment ? (
+              <div
+                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 ${
+                  nextOverdue ? "bg-destructive/10" : "bg-muted/60"
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <AlertCircle
+                    className={`h-4 w-4 shrink-0 ${
+                      nextOverdue ? "text-destructive" : "text-muted-foreground"
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium">
+                      {nextOverdue ? "EMI overdue" : "Next EMI"}
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {nextPayment.loanName} ·{" "}
+                      {new Date(nextPayment.date).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 text-[15px] font-semibold tabular-nums ${
+                    nextOverdue ? "text-destructive" : ""
+                  }`}
+                >
+                  {inr(nextPayment.amount)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5 rounded-xl bg-muted/60 px-3.5 py-2.5">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                <p className="text-[13px] font-medium">All EMIs cleared</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Monthly trend */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Monthly spend</CardTitle>
-          <CardDescription className="text-xs">
-            Construction vs property over time
-          </CardDescription>
+          <CardDescription>Construction vs property over time</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <TrendChart data={trendData} />
         </CardContent>
       </Card>
 
-      {/* Month expenses */}
+      {/* This month */}
       <MonthExpenses expenses={expenses} />
 
-      {/* Charts */}
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Where it went</CardTitle>
-            <CardDescription className="text-xs">
-              Spend by section
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-2">
-            <ExpenseChart data={sectionChart} />
-          </CardContent>
-        </Card>
-
+      {/* Funding source */}
+      {fundingChart.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Where it came from</CardTitle>
-            <CardDescription className="text-xs">
-              Payouts by funding source
-            </CardDescription>
+            <CardDescription>Payouts by funding source</CardDescription>
           </CardHeader>
           <CardContent className="px-2">
             <ExpenseChart data={fundingChart} />
           </CardContent>
         </Card>
-      </div>
-
-      {/* Detail lists */}
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-1.5">
-              <Layers className="h-4 w-4" /> Top areas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5 px-3">
-            {topAreas.length === 0 && (
-              <p className="text-xs text-muted-foreground">No expenses yet.</p>
-            )}
-            {topAreas.map((a) => (
-              <BarRow
-                key={a.name}
-                label={a.name}
-                value={inr(a.value)}
-                pct={(a.value / areaMax) * 100}
-              />
-            ))}
-            {areaBreakdown.length > topAreas.length && (
-              <p className="text-[10px] text-muted-foreground">
-                +{areaBreakdown.length - topAreas.length} more
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> Top payees
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5 px-3">
-            {topPayees.length === 0 && (
-              <p className="text-xs text-muted-foreground">No payees yet.</p>
-            )}
-            {topPayees.map((p) => (
-              <BarRow
-                key={p.name}
-                label={p.name}
-                value={inr(p.value)}
-                pct={(p.value / payeeMax) * 100}
-              />
-            ))}
-            {allPayees.length > topPayees.length && (
-              <p className="text-[10px] text-muted-foreground">
-                +{allPayees.length - topPayees.length} more
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
+  );
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant="secondary"
+      onClick={onClick}
+      className="h-auto flex-col items-center gap-2 rounded-2xl py-4"
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <span className="text-[13px] font-medium">{label}</span>
+    </Button>
+  );
+}
+
+function RecordFundingDialog({
+  open,
+  onOpenChange,
+  sources,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sources: FundingSource[];
+  onSubmit: (sourceId: number, values: FundingEntryFormValues) => Promise<void>;
+}) {
+  const [sourceId, setSourceId] = useState<string>("");
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setSourceId("");
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record funding</DialogTitle>
+          <DialogDescription>
+            Log money in or out on a funding source.
+          </DialogDescription>
+        </DialogHeader>
+
+        {sources.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            No funding sources yet. Add one from the Funding tab first.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                Funding source
+              </label>
+              <Select value={sourceId} onValueChange={setSourceId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose a source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sources.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {sourceId && (
+              <FundingEntryForm
+                onSubmit={(values) => onSubmit(Number(sourceId), values)}
+                onCancel={() => onOpenChange(false)}
+              />
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -393,68 +708,73 @@ function MonthExpenses({ expenses }: { expenses: Expense[] }) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Month expenses</CardTitle>
-            <CardDescription className="text-xs">{label}</CardDescription>
+            <CardTitle className="text-base">This month</CardTitle>
+            <CardDescription>{label}</CardDescription>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <Button
-              variant="outline"
+              variant="secondary"
               size="icon"
-              className="h-7 w-7"
+              className="h-9 w-9 rounded-full"
               onClick={() => setOffset((o) => o - 1)}
+              aria-label="Previous month"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="icon"
-              className="h-7 w-7"
+              className="h-9 w-9 rounded-full"
               onClick={() => setOffset((o) => Math.min(0, o + 1))}
               disabled={offset >= 0}
+              aria-label="Next month"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-3">
+      <CardContent>
         {items.length === 0 ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">
+          <p className="py-8 text-center text-sm text-muted-foreground">
             No expenses this month.
           </p>
         ) : (
           <>
-            <div className="mb-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
+            <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2.5">
+              <span className="text-[13px] text-muted-foreground">
                 {items.length} expense{items.length === 1 ? "" : "s"}
               </span>
-              <span className="font-semibold tabular-nums">{inr(total)}</span>
+              <span className="text-lg font-semibold tabular-nums tracking-tight">
+                {inr(total)}
+              </span>
             </div>
-            <div className="max-h-80 divide-y overflow-auto rounded-md border">
+            <div className="-mx-2 max-h-80 divide-y divide-border/60 overflow-auto">
               {items.map((e) => (
                 <div
                   key={e.id}
-                  className="flex items-center justify-between gap-2 px-3 py-2"
+                  className="flex items-center gap-3 px-2 py-2.5"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
                       {e.description}
                     </p>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span className="tabular-nums">
                         {new Date(e.date).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                         })}
                       </span>
                       {e.area && (
-                        <span className="rounded-full bg-muted px-1.5 py-0.5">
-                          {e.area}
-                        </span>
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="truncate">{e.area}</span>
+                        </>
                       )}
                     </div>
                   </div>
-                  <span className="shrink-0 text-xs font-semibold tabular-nums">
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">
                     {inr(e.amount)}
                   </span>
                 </div>
@@ -464,74 +784,5 @@ function MonthExpenses({ expenses }: { expenses: Expense[] }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  icon,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-        <CardTitle className="text-xs font-medium">{label}</CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent className="px-3 pb-3">
-        <div className="text-lg font-bold tabular-nums">{value}</div>
-        {hint && (
-          <p className="truncate text-[10px] text-muted-foreground">{hint}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="text-base font-semibold tabular-nums">{value}</p>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function BarRow({
-  label,
-  value,
-  pct,
-}: {
-  label: string;
-  value: string;
-  pct: number;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium truncate pr-2">{label}</span>
-        <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-          {value}
-        </span>
-      </div>
-      <Progress value={pct} className="h-1.5" />
-    </div>
   );
 }

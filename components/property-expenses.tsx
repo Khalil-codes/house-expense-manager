@@ -1,153 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  useExpenseService,
-  type Expense,
-} from "@/hooks/use-expense-service";
-import { Plus, Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ExpenseForm } from "@/components/expense-form";
-import { ExpenseList } from "@/components/expense-list";
-import type { ExpenseFormValues } from "@/lib/validations";
+import { ExpenseSection } from "@/components/expense-section";
 
-export default function PropertyExpenses() {
-  const {
-    property,
-    payees,
-    areas,
-    tags,
-    fundingSources,
-    isLoading,
-    addExpense,
-    updateExpense,
-    removeExpense,
-    createArea,
-  } = useExpenseService();
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editExpense, setEditExpense] = useState<Expense | null>(null);
-
-  const propertyTotal = property.reduce((total, e) => total + e.amount, 0);
-
-  const openAdd = () => {
-    setEditExpense(null);
-    setIsAddDialogOpen(true);
-  };
-
-  const openEdit = (expense: Expense) => {
-    setEditExpense(expense);
-    setIsAddDialogOpen(true);
-  };
-
-  const onSubmit = async (values: ExpenseFormValues) => {
-    if (editExpense) {
-      await updateExpense({
-        id: editExpense.id,
-        description: values.description,
-        amount: values.amount,
-        area_id: values.area_id,
-        date: new Date(values.date).toISOString(),
-        payee_name: values.payee_name,
-        funding_source_id: values.funding_source_id,
-        payment_method: values.payment_method,
-        notes: values.notes,
-        tags: values.tags,
-      });
-    } else {
-      await addExpense({
-        id: crypto.randomUUID(),
-        type: "property",
-        description: values.description,
-        amount: values.amount,
-        area_id: values.area_id,
-        date: new Date(values.date).toISOString(),
-        payee_name: values.payee_name,
-        funding_source_id: values.funding_source_id,
-        payment_method: values.payment_method,
-        notes: values.notes,
-        tags: values.tags,
-      });
-    }
-
-    setIsAddDialogOpen(false);
-    setEditExpense(null);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p>Loading property expenses...</p>
-      </div>
-    );
-  }
-
+export default function PropertyExpenses({
+  autoOpenAdd,
+  onAutoOpenHandled,
+}: {
+  autoOpenAdd?: boolean;
+  onAutoOpenHandled?: () => void;
+}) {
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Property Expenses</CardTitle>
-              <CardDescription className="text-xs">
-                Total spent: ₹{propertyTotal.toLocaleString()}
-              </CardDescription>
-            </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" onClick={openAdd}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Expense
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editExpense ? "Edit" : "Add"} Property Expense
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Enter expense details
-                  </DialogDescription>
-                </DialogHeader>
-                <ExpenseForm
-                  type="property"
-                  editExpense={editExpense}
-                  payees={payees}
-                  areas={areas}
-                  tags={tags}
-                  fundingSources={fundingSources}
-                  onSubmit={onSubmit}
-                  onCancel={() => setIsAddDialogOpen(false)}
-                  onCreateArea={(name) => createArea({ name, sort_order: 0 })}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ExpenseList
-            expenses={property}
-            onEdit={openEdit}
-            onDelete={removeExpense}
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <ExpenseSection
+      type="property"
+      title="Property"
+      autoOpenAdd={autoOpenAdd}
+      onAutoOpenHandled={onAutoOpenHandled}
+    />
   );
 }

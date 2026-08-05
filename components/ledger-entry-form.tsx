@@ -190,9 +190,9 @@ export function LedgerEntryForm({
                           </CommandGroup>
                           <CommandSeparator />
                           <CommandGroup>
-                            <div className="flex items-center gap-1 px-2 py-1.5">
+                            <div className="flex items-center gap-1.5 px-2 py-1.5">
                               <Input
-                                placeholder="New person..."
+                                placeholder="New person…"
                                 value={newPersonName}
                                 onChange={(e) =>
                                   setNewPersonName(e.target.value)
@@ -203,13 +203,13 @@ export function LedgerEntryForm({
                                     handleCreatePerson();
                                   }
                                 }}
-                                className="h-7 text-xs"
+                                className="h-9"
                               />
                               <Button
                                 type="button"
                                 size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0"
+                                variant="secondary"
+                                className="h-9 w-9 shrink-0 rounded-lg"
                                 disabled={creatingPerson || !newPersonName.trim()}
                                 onClick={handleCreatePerson}
                               >
@@ -273,7 +273,7 @@ export function LedgerEntryForm({
               control={form.control}
               name="recurring"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3 space-y-0">
+                <FormItem className="flex items-center justify-between rounded-2xl border border-border/60 p-4 space-y-0">
                   <div>
                     <FormLabel className="cursor-pointer">
                       Recurring (EMI)
@@ -294,7 +294,7 @@ export function LedgerEntryForm({
           )}
 
           {!isEditMode && recurring && (
-            <div className="space-y-4 rounded-lg border p-3">
+            <div className="space-y-4 rounded-2xl border border-border/60 p-4">
               <FormField
                 control={form.control}
                 name="installment_count"
@@ -399,14 +399,14 @@ export function LedgerEntryForm({
           />
         </div>
 
-        <DialogFooter className="gap-2 pt-2">
+        <DialogFooter className="gap-1 pt-3">
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEditMode ? "Save changes" : "Add entry"}
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             className="w-full"
             disabled={isSubmitting}
             onClick={onCancel}

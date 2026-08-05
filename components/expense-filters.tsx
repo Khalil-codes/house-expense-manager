@@ -3,8 +3,7 @@
 import { Search, X, LayoutList, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Segmented } from "@/components/ui/segmented";
 import {
   Select,
   SelectContent,
@@ -59,18 +58,37 @@ export function ExpenseFilters({
   hasActiveFilters,
 }: ExpenseFiltersProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search expenses..."
+          placeholder="Search expenses…"
           value={globalFilter}
           onChange={(e) => onGlobalFilterChange(e.target.value)}
-          className="pl-9 h-10 text-sm"
+          className="h-11 rounded-full border-transparent bg-muted pl-10 focus-visible:bg-background"
         />
+        {globalFilter && (
+          <button
+            type="button"
+            onClick={() => onGlobalFilterChange("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <div className="flex gap-2.5 flex-wrap items-center">
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented
+          aria-label="Loan filter"
+          value={loanOnly ? "loan" : "all"}
+          onChange={(v) => onLoanOnlyChange(v === "loan")}
+          options={[
+            { value: "all", label: "All" },
+            { value: "loan", label: "Loan" },
+          ]}
+        />
+
         {uniqueAreas.length > 0 && (
           <Select
             value={areaFilter ?? "__all__"}
@@ -78,11 +96,11 @@ export function ExpenseFilters({
               onAreaFilterChange(v === "__all__" ? undefined : v)
             }
           >
-            <SelectTrigger className="h-9 text-xs min-w-[110px] w-auto">
+            <SelectTrigger className="h-9 w-auto min-w-[104px] rounded-full text-[13px]">
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">All Areas</SelectItem>
+              <SelectItem value="__all__">All areas</SelectItem>
               {uniqueAreas.map((a) => (
                 <SelectItem key={a} value={a}>
                   {a}
@@ -98,11 +116,11 @@ export function ExpenseFilters({
             onPayeeFilterChange(v === "__all__" ? undefined : v)
           }
         >
-          <SelectTrigger className="h-9 text-xs min-w-[110px] w-auto">
-            <SelectValue placeholder="Paid To" />
+          <SelectTrigger className="h-9 w-auto min-w-[104px] rounded-full text-[13px]">
+            <SelectValue placeholder="Payee" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All Payees</SelectItem>
+            <SelectItem value="__all__">All payees</SelectItem>
             {uniquePayees.map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
@@ -118,11 +136,11 @@ export function ExpenseFilters({
               onFundingFilterChange(v === "__all__" ? undefined : v)
             }
           >
-            <SelectTrigger className="h-9 text-xs min-w-[120px] w-auto">
+            <SelectTrigger className="h-9 w-auto min-w-[112px] rounded-full text-[13px]">
               <SelectValue placeholder="Funding" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">All Funding</SelectItem>
+              <SelectItem value="__all__">All funding</SelectItem>
               {uniqueFundingSources.map((f) => (
                 <SelectItem key={f} value={f}>
                   {f}
@@ -132,50 +150,39 @@ export function ExpenseFilters({
           </Select>
         )}
 
-        <div className="flex items-center gap-2 ml-1">
-          <Switch
-            id="loan-filter"
-            checked={loanOnly}
-            onCheckedChange={onLoanOnlyChange}
-          />
-          <Label htmlFor="loan-filter" className="text-xs cursor-pointer whitespace-nowrap">
-            Loan only
-          </Label>
-        </div>
-
         {hasActiveFilters && (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="text-xs"
+            className="h-9 rounded-full text-[13px] text-muted-foreground"
             onClick={onClearAll}
           >
-            <X className="mr-1.5 h-3 w-3" />
+            <X className="mr-1 h-3.5 w-3.5" />
             Clear
           </Button>
         )}
       </div>
 
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex items-center justify-between pt-0.5">
         <FilterSummary count={filteredCount} total={filteredTotal} />
 
-        <div className="flex items-center border rounded-lg overflow-hidden">
-          <Button
-            variant={viewMode === "table" ? "secondary" : "ghost"}
-            size="icon"
-            className="h-8 w-8 rounded-none"
-            onClick={() => onViewModeChange("table")}
-          >
-            <LayoutList className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="icon"
-            className="h-8 w-8 rounded-none"
-            onClick={() => onViewModeChange("grid")}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
+        <div className="hidden md:block">
+          <Segmented
+            aria-label="View mode"
+            size="sm"
+            value={viewMode}
+            onChange={onViewModeChange}
+            options={[
+              {
+                value: "grid",
+                label: <LayoutGrid className="h-4 w-4" />,
+              },
+              {
+                value: "table",
+                label: <LayoutList className="h-4 w-4" />,
+              },
+            ]}
+          />
         </div>
       </div>
     </div>
@@ -185,10 +192,13 @@ export function ExpenseFilters({
 function FilterSummary({ count, total }: { count: number; total: number }) {
   const label = count === 1 ? "expense" : "expenses";
   return (
-    <span className="text-sm text-muted-foreground tabular-nums">
+    <span className="text-[13px] text-muted-foreground tabular-nums">
       <span className="font-medium text-foreground">{count}</span> {label}
-      {" \u00B7 "}
-      <span className="font-medium text-foreground">{"\u20B9"}{total.toLocaleString()}</span>
+      {" · "}
+      <span className="font-medium text-foreground">
+        {"\u20B9"}
+        {total.toLocaleString("en-IN")}
+      </span>
     </span>
   );
 }

@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Segmented } from "@/components/ui/segmented";
+import { useIsMobile } from "@/components/ui/use-mobile";
 import {
   Table,
   TableBody,
@@ -27,6 +29,7 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle2,
+  Check,
   LayoutList,
   LayoutGrid,
   Wallet,
@@ -46,9 +49,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { LoanForm } from "@/components/loan-form";
 import { PrepaymentForm } from "@/components/prepayment-form";
 import type { LoanFormValues, PrepaymentFormValues } from "@/lib/validations";
+import { normalizeName } from "@/lib/loan-utils";
 
 const PAYMENTS_PER_PAGE = 12;
 type ScheduleView = "table" | "list";
@@ -56,6 +71,7 @@ type ScheduleView = "table" | "list";
 export default function LoanTracker() {
   const {
     loans,
+    fundingSources,
     isLoading,
     addLoan,
     deleteLoan,
@@ -72,11 +88,22 @@ export default function LoanTracker() {
     null
   );
   const [scheduleView, setScheduleView] = useState<ScheduleView>("list");
+  const isMobile = useIsMobile();
+  const effectiveScheduleView: ScheduleView = isMobile ? "list" : scheduleView;
 
   const selectedLoan: LoanData | undefined = useMemo(() => {
     if (selectedLoanId) return loans.find((l) => l.id === selectedLoanId);
     return loans[0];
   }, [loans, selectedLoanId]);
+
+  // Auto-link to a same-named funding source to show how much was deployed.
+  const deployedFromLoan = useMemo(() => {
+    if (!selectedLoan) return null;
+    const match = fundingSources.find(
+      (s) => normalizeName(s.name) === normalizeName(selectedLoan.name)
+    );
+    return match ? match.outflows : null;
+  }, [fundingSources, selectedLoan]);
 
   const loanStats = useMemo(() => {
     if (!selectedLoan || selectedLoan.payments.length === 0) {
@@ -181,7 +208,6 @@ export default function LoanTracker() {
   };
 
   const handleDeleteLoan = async (loanId: string) => {
-    if (!confirm("Are you sure you want to delete this loan?")) return;
     setDeletingLoan(true);
     try {
       await deleteLoan(loanId);
@@ -229,15 +255,15 @@ export default function LoanTracker() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p>Loading loan data...</p>
+      <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+        <Loader2 className="mb-4 h-7 w-7 animate-spin" />
+        <p className="text-sm">Loading loans…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-2xl space-y-5">
       {/* ── 1. Loan Header + Actions ── */}
       <div className="flex items-center gap-2 flex-wrap">
         {loans.length > 1 && (
@@ -263,9 +289,9 @@ export default function LoanTracker() {
 
         <Dialog open={loanFormOpen} onOpenChange={setLoanFormOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="ml-auto">
+            <Button size="sm" className="ml-auto rounded-full">
               <Plus className="h-4 w-4 mr-1" />
-              Add Loan
+              Add loan
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
@@ -289,6 +315,7 @@ export default function LoanTracker() {
           <LoanSummaryCard
             loan={selectedLoan}
             stats={loanStats}
+            deployed={deployedFromLoan}
             onDelete={() => handleDeleteLoan(selectedLoan.id)}
             isDeleting={deletingLoan}
           />
@@ -312,7 +339,9 @@ export default function LoanTracker() {
           {/* ── 4. Payment Schedule ── */}
           <div className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-sm font-semibold">Payment Schedule</h3>
+              <h3 className="text-base font-semibold tracking-tight">
+                Payment schedule
+              </h3>
               <div className="flex items-center gap-2">
                 {/* Prepay button */}
                 <Dialog
@@ -320,7 +349,7 @@ export default function LoanTracker() {
                   onOpenChange={setPrepayDialogOpen}
                 >
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="secondary" size="sm" className="h-9 rounded-full">
                       <Wallet className="h-4 w-4 mr-1" />
                       Prepay
                     </Button>
@@ -374,23 +403,17 @@ export default function LoanTracker() {
                 </Dialog>
 
                 {/* List / Table toggle */}
-                <div className="flex border rounded-md">
-                  <Button
-                    variant={scheduleView === "list" ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-8 w-8 rounded-r-none"
-                    onClick={() => setScheduleView("list")}
-                  >
-                    <LayoutList className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={scheduleView === "table" ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-8 w-8 rounded-l-none"
-                    onClick={() => setScheduleView("table")}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
+                <div className="hidden md:block">
+                  <Segmented
+                    aria-label="Schedule view"
+                    size="sm"
+                    value={scheduleView}
+                    onChange={(v) => setScheduleView(v as ScheduleView)}
+                    options={[
+                      { value: "list", label: <LayoutList className="h-4 w-4" /> },
+                      { value: "table", label: <LayoutGrid className="h-4 w-4" /> },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -453,7 +476,7 @@ export default function LoanTracker() {
             )}
 
             {/* Schedule content */}
-            {scheduleView === "table" ? (
+            {effectiveScheduleView === "table" ? (
               <ScheduleTable
                 payments={paginatedPayments.payments}
                 isOverdue={isOverdue}
@@ -475,15 +498,19 @@ export default function LoanTracker() {
       )}
 
       {loans.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground mb-4">No loans added yet</p>
-            <Button onClick={() => setLoanFormOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Your First Loan
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 py-14 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Wallet className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="mt-3 text-sm font-medium">No loans yet</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Add a loan to generate its payment schedule.
+          </p>
+          <Button className="mt-4 rounded-full" onClick={() => setLoanFormOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add loan
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -496,6 +523,7 @@ export default function LoanTracker() {
 function LoanSummaryCard({
   loan,
   stats,
+  deployed,
   onDelete,
   isDeleting,
 }: {
@@ -507,6 +535,7 @@ function LoanSummaryCard({
     totalPayable: number;
     progressPercent: number;
   };
+  deployed?: number | null;
   onDelete: () => void;
   isDeleting: boolean;
 }) {
@@ -521,54 +550,91 @@ function LoanSummaryCard({
 
   return (
     <Card>
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="space-y-4 p-5">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="font-semibold text-base truncate">{loan.name}</h3>
-            <p className="text-xs text-muted-foreground">{loanTerms}</p>
+            <h3 className="truncate text-lg font-semibold tracking-tight">
+              {loan.name}
+            </h3>
+            <p className="text-[13px] text-muted-foreground">{loanTerms}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-            disabled={isDeleting}
-            onClick={onDelete}
-          >
-            {isDeleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-mr-1.5 h-10 w-10 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-[18px] w-[18px]" />
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {loan.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the loan and its entire payment schedule. This
+                  can&apos;t be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={onDelete}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Progress bar */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[13px] text-muted-foreground">
             <span>Repayment progress</span>
-            <span className="font-medium">
+            <span className="font-medium text-foreground">
               {stats.progressPercent.toFixed(1)}%
             </span>
           </div>
-          <Progress value={stats.progressPercent} className="h-2" />
+          <Progress value={stats.progressPercent} className="h-2.5" />
         </div>
 
         {/* Two key stats */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-muted-foreground">Total Paid</p>
-            <p className="text-lg font-bold text-green-600 dark:text-green-400">
+            <p className="text-[12px] text-muted-foreground">Total paid</p>
+            <p className="text-xl font-semibold tabular-nums text-primary">
               {fmt(stats.amountPaid)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Remaining</p>
-            <p className="text-lg font-bold">
+            <p className="text-[12px] text-muted-foreground">Remaining</p>
+            <p className="text-xl font-semibold tabular-nums">
               {fmt(stats.remainingBalance)}
             </p>
           </div>
         </div>
+
+        {deployed != null && deployed > 0 && (
+          <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3.5 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">Deployed into house</p>
+              <p className="text-[11px] text-muted-foreground">
+                spent from this loan&apos;s funding
+              </p>
+            </div>
+            <span className="shrink-0 text-[15px] font-semibold tabular-nums">
+              {fmt(deployed)}
+            </span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -597,17 +663,19 @@ function NextPaymentBanner({
 }) {
   if (allPaid) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30 p-4">
-        <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-green-800 dark:text-green-300">
-            All payments completed
-          </p>
-          <p className="text-xs text-green-600 dark:text-green-500">
-            Congratulations! This loan is fully paid off.
-          </p>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="flex items-center gap-3 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <CheckCircle2 className="h-5 w-5 text-primary" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">All payments completed</p>
+            <p className="text-[13px] text-muted-foreground">
+              This loan is fully paid off.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -620,47 +688,47 @@ function NextPaymentBanner({
   });
 
   return (
-    <div
-      className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-4 ${
-        isOverdue
-          ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
-          : "border-border bg-muted/30"
-      }`}
-    >
-      <div className="flex items-start gap-3 flex-1 min-w-0">
-        {isOverdue && (
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-        )}
-        <div className="min-w-0">
-          <p className="text-sm font-medium">
-            {isOverdue ? "Overdue" : "Next payment"}{" "}
-            <span className="text-muted-foreground font-normal">
-              &middot; EMI #{payment.month}
-            </span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {isOverdue ? `Due since ${dateStr}` : `Due ${dateStr}`}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 sm:shrink-0">
-        <span className="text-lg font-bold">{fmt(payment.amount)}</span>
-        <Button
-          size="sm"
-          variant={isOverdue ? "destructive" : "default"}
-          disabled={disabled}
-          onClick={onMarkPaid}
-        >
-          {isToggling ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4 mr-1" />
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          {isOverdue && (
+            <span className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-destructive" />
           )}
-          Mark Paid
-        </Button>
-      </div>
-    </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              <span className={isOverdue ? "text-destructive" : undefined}>
+                {isOverdue ? "Overdue" : "Next payment"}
+              </span>{" "}
+              <span className="font-normal text-muted-foreground">
+                · EMI #{payment.month}
+              </span>
+            </p>
+            <p className="flex items-center gap-1 text-[13px] text-muted-foreground">
+              {isOverdue && <AlertCircle className="h-3.5 w-3.5" />}
+              {isOverdue ? `Due since ${dateStr}` : `Due ${dateStr}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 sm:shrink-0">
+          <span className="text-lg font-semibold tabular-nums">
+            {fmt(payment.amount)}
+          </span>
+          <Button
+            variant={isOverdue ? "destructive" : "default"}
+            disabled={disabled}
+            onClick={onMarkPaid}
+          >
+            {isToggling ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="mr-1 h-4 w-4" />
+            )}
+            Mark paid
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -682,7 +750,7 @@ function ScheduleTable({
   fmt: (n: number) => string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="overflow-x-auto rounded-2xl border border-border/60">
       <Table>
         <TableHeader>
           <TableRow>
@@ -701,9 +769,9 @@ function ScheduleTable({
               key={payment.id}
               className={
                 isOverdue(payment.date, payment.paid)
-                  ? "bg-destructive/10"
+                  ? "bg-destructive/5"
                   : payment.paid
-                  ? "bg-green-500/5"
+                  ? "bg-muted/40"
                   : ""
               }
             >
@@ -741,7 +809,6 @@ function ScheduleTable({
                     onCheckedChange={() =>
                       onToggle(payment.id, payment.paid)
                     }
-                    className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
                   />
                 )}
               </TableCell>
@@ -779,17 +846,17 @@ function ScheduleList({
         return (
           <div
             key={payment.id}
-            className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+            className={`flex items-center gap-3 rounded-2xl border border-border/60 p-3 transition-colors ${
               overdue
-                ? "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                ? "bg-destructive/5"
                 : payment.paid
-                ? "border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20"
-                : "border-border"
+                ? "bg-muted/40"
+                : "bg-card"
             }`}
           >
             {/* Left: month + date */}
             <div className="w-16 shrink-0 text-center">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 EMI #{payment.month}
               </p>
               <p className="text-xs font-medium">
@@ -802,36 +869,47 @@ function ScheduleList({
 
             {/* Center: amount + details */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{fmt(payment.amount)}</p>
+              <p className="text-sm font-semibold tabular-nums">
+                {fmt(payment.amount)}
+              </p>
               <p className="text-[11px] text-muted-foreground">
-                P: {fmt(payment.principal)} &middot; I:{" "}
-                {fmt(payment.interest)} &middot; Bal: {fmt(payment.balance)}
+                P: {fmt(payment.principal)} · I: {fmt(payment.interest)} · Bal:{" "}
+                {fmt(payment.balance)}
               </p>
             </div>
 
-            {/* Status badge */}
+            {/* Status */}
             {overdue && (
               <Badge
                 variant="destructive"
-                className="text-[10px] px-1.5 py-0 hidden sm:inline-flex"
+                className="hidden px-2 py-0 text-[10px] sm:inline-flex"
               >
                 Overdue
               </Badge>
             )}
 
-            {/* Right: checkbox */}
-            <div className="shrink-0">
+            {/* Right: checkbox with 44px target */}
+            <button
+              type="button"
+              disabled={togglingPaymentId !== null}
+              onClick={() => onToggle(payment.id, payment.paid)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted disabled:opacity-60"
+              aria-label={payment.paid ? "Mark unpaid" : "Mark paid"}
+            >
               {toggling ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <Checkbox
-                  checked={payment.paid}
-                  disabled={togglingPaymentId !== null}
-                  onCheckedChange={() => onToggle(payment.id, payment.paid)}
-                  className="h-5 w-5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                />
+                <span
+                  className={`flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border transition-colors ${
+                    payment.paid
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input"
+                  }`}
+                >
+                  {payment.paid && <Check className="h-3.5 w-3.5" />}
+                </span>
               )}
-            </div>
+            </button>
           </div>
         );
       })}

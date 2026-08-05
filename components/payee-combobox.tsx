@@ -88,7 +88,11 @@ export function PayeeCombobox({
           <CommandList>
             {query && !hasExact && (
               <CommandGroup>
-                <CommandItem value={`__new__${query}`} onSelect={() => select(query)}>
+                <CommandItem
+                  value={`__new__${query}`}
+                  onSelect={() => select(query)}
+                  className="py-2.5 text-primary aria-selected:text-primary"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Use &ldquo;{query}&rdquo;
                 </CommandItem>
@@ -96,7 +100,11 @@ export function PayeeCombobox({
             )}
             <CommandGroup>
               {value && (
-                <CommandItem value="__none__" onSelect={() => select(null)}>
+                <CommandItem
+                  value="__none__"
+                  onSelect={() => select(null)}
+                  className="py-2.5"
+                >
                   <Check className="mr-2 h-4 w-4 opacity-0" />
                   <span className="text-muted-foreground">Clear</span>
                 </CommandItem>
@@ -106,6 +114,7 @@ export function PayeeCombobox({
                   key={payee.id}
                   value={payee.name}
                   onSelect={() => select(payee.name)}
+                  className="py-2.5"
                 >
                   <Check
                     className={cn(

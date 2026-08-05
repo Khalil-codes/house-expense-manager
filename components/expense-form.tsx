@@ -150,13 +150,15 @@ export function ExpenseForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="space-y-4 py-1">
+        <div className="space-y-5 py-1">
           <FormField
             control={form.control}
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>What was it for?</FormLabel>
+                <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                  What was it for?
+                </FormLabel>
                 <FormControl>
                   <Input
                     {...field}
@@ -179,7 +181,9 @@ export function ExpenseForm({
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount</FormLabel>
+                  <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                    Amount
+                  </FormLabel>
                   <FormControl>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -208,7 +212,9 @@ export function ExpenseForm({
               name="date"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                    Date
+                  </FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
@@ -225,7 +231,9 @@ export function ExpenseForm({
               const selected = areas.find((a) => a.id === field.value);
               return (
                 <FormItem>
-                  <FormLabel>Area of house</FormLabel>
+                  <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                    Area of house
+                  </FormLabel>
                   <Popover open={areaOpen} onOpenChange={setAreaOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -279,9 +287,9 @@ export function ExpenseForm({
                           </CommandGroup>
                           <CommandSeparator />
                           <CommandGroup>
-                            <div className="flex items-center gap-1 px-2 py-1.5">
+                            <div className="flex items-center gap-1.5 px-2 py-1.5">
                               <Input
-                                placeholder="New area..."
+                                placeholder="New area…"
                                 value={newAreaName}
                                 onChange={(e) =>
                                   setNewAreaName(e.target.value)
@@ -292,13 +300,13 @@ export function ExpenseForm({
                                     handleCreateArea();
                                   }
                                 }}
-                                className="h-7 text-xs"
+                                className="h-9"
                               />
                               <Button
                                 type="button"
                                 size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0"
+                                variant="secondary"
+                                className="h-9 w-9 shrink-0 rounded-lg"
                                 disabled={creatingArea || !newAreaName.trim()}
                                 onClick={handleCreateArea}
                               >
@@ -325,7 +333,9 @@ export function ExpenseForm({
             name="payee_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Paid to</FormLabel>
+                <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                  Paid to
+                </FormLabel>
                 <FormControl>
                   <PayeeCombobox
                     value={field.value}
@@ -345,7 +355,9 @@ export function ExpenseForm({
               const selected = fundingSources.find((s) => s.id === field.value);
               return (
                 <FormItem>
-                  <FormLabel>Funding source</FormLabel>
+                  <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                    Funding source
+                  </FormLabel>
                   <Select
                     value={field.value?.toString() ?? "__none__"}
                     onValueChange={(v) =>
@@ -397,7 +409,9 @@ export function ExpenseForm({
               name="payment_method"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment method</FormLabel>
+                  <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                    Payment method
+                  </FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -422,7 +436,9 @@ export function ExpenseForm({
               name="tags"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tags</FormLabel>
+                    <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                      Tags
+                    </FormLabel>
                     <FormControl>
                       <TagInput
                         value={field.value}
@@ -440,7 +456,9 @@ export function ExpenseForm({
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Notes</FormLabel>
+                    <FormLabel className="text-[13px] font-medium text-muted-foreground">
+                      Notes
+                    </FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Optional notes..."
@@ -458,14 +476,14 @@ export function ExpenseForm({
           </Collapsible>
         </div>
 
-        <DialogFooter className="gap-2 pt-4">
+        <DialogFooter className="gap-1 pt-5">
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditMode ? "Update" : "Add"}
+            {isEditMode ? "Save changes" : "Add expense"}
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             className="w-full"
             disabled={isSubmitting}
             onClick={onCancel}

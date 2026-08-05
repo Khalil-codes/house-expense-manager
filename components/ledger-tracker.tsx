@@ -11,8 +11,7 @@ import {
   Repeat,
   HandCoins,
   CheckCircle2,
-  Wallet,
-  CircleDollarSign,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +23,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -271,48 +277,54 @@ export default function LedgerTracker() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p className="text-sm text-muted-foreground">Loading ledger...</p>
+      <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+        <Loader2 className="mb-4 h-7 w-7 animate-spin" />
+        <p className="text-sm">Loading ledger…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold tracking-tight">Ledger</h2>
-          <p className="text-xs text-muted-foreground">Money you&apos;ve lent out</p>
+          <h2 className="text-lg font-semibold tracking-tight">Ledger</h2>
+          <p className="text-[13px] text-muted-foreground">
+            Money you&apos;ve lent out
+          </p>
         </div>
-        <Button size="sm" onClick={openAdd}>
+        <Button size="sm" className="rounded-full" onClick={openAdd}>
           <Plus className="mr-1 h-4 w-4" />
           Lend
         </Button>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-2">
-        <StatCard
-          label="Lent"
-          value={totals.lent}
-          icon={<Wallet className="h-4 w-4" />}
-          tone="neutral"
-        />
-        <StatCard
-          label="Outstanding"
-          value={totals.outstanding}
-          icon={<CircleDollarSign className="h-4 w-4" />}
-          tone="amber"
-        />
-        <StatCard
-          label="Settled"
-          value={totals.settled}
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          tone="green"
-        />
-      </div>
+      {/* Summary */}
+      <Card>
+        <CardContent className="p-5">
+          <p className="text-[13px] font-medium text-muted-foreground">
+            Outstanding
+          </p>
+          <p className="mt-1 text-[32px] font-semibold leading-none tracking-tight tabular-nums">
+            {fmtAmount(totals.outstanding)}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border/60 pt-4">
+            <div>
+              <p className="text-[12px] text-muted-foreground">Lent</p>
+              <p className="text-lg font-semibold tabular-nums">
+                {fmtAmount(totals.lent)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[12px] text-muted-foreground">Settled</p>
+              <p className="text-lg font-semibold tabular-nums text-primary">
+                {fmtAmount(totals.settled)}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       {entries.length > 0 && (
@@ -399,7 +411,7 @@ export default function LedgerTracker() {
                   {group.person ?? "Unknown"}
                 </span>
                 {group.outstanding > 0 && (
-                  <span className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-500">
+                  <span className="ml-auto text-[13px] font-medium tabular-nums text-muted-foreground">
                     {fmtAmount(group.outstanding)} due
                   </span>
                 )}
@@ -449,7 +461,7 @@ export default function LedgerTracker() {
           if (!o) setEditEntry(null);
         }}
       >
-        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editEntry ? "Edit entry" : "Lend money"}</DialogTitle>
             <DialogDescription className="text-xs">
@@ -481,38 +493,6 @@ export default function LedgerTracker() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-
-function StatCard({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  tone: "neutral" | "amber" | "green";
-}) {
-  const toneClasses = {
-    neutral: "text-muted-foreground",
-    amber: "text-amber-600 dark:text-amber-500",
-    green: "text-emerald-600 dark:text-emerald-500",
-  }[tone];
-
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <div className={cn("flex items-center gap-1.5", toneClasses)}>
-          {icon}
-          <span className="text-[11px] font-medium">{label}</span>
-        </div>
-        <p className="mt-1 text-sm font-bold tabular-nums truncate">
-          {fmtAmount(value)}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
 
 function EntryCard({
   entry,
@@ -551,11 +531,11 @@ function EntryCard({
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-3">
+      <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold tabular-nums">
+              <span className="text-lg font-semibold tabular-nums">
                 {fmtAmount(entry.amount)}
               </span>
               {entry.recurring && (
@@ -576,29 +556,36 @@ function EntryCard({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onEdit}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              disabled={deleting}
-              onClick={onDelete}
-            >
-              {deleting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-mr-1.5 -mt-1 h-9 w-9 shrink-0 rounded-full"
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MoreHorizontal className="h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* One-time entries: partial payments + remaining balance */}
@@ -610,7 +597,7 @@ function EntryCard({
                   <span>
                     {fmtAmount(entry.amount_paid)} of {fmtAmount(entry.amount)}
                     {!isPaid && (
-                      <span className="text-amber-600 dark:text-amber-500">
+                      <span className="text-foreground">
                         {" · "}
                         {fmtAmount(entry.outstanding_amount)} left
                       </span>
@@ -632,12 +619,12 @@ function EntryCard({
                     </button>
                   )}
                 </div>
-                <Progress value={paymentProgress} className="h-1.5" />
+                <Progress value={paymentProgress} className="h-2" />
               </>
             )}
 
             {hasPayments && expanded && (
-              <div className="mt-1 space-y-0.5 rounded-md bg-muted/40 p-1.5">
+              <div className="mt-1 space-y-0.5 rounded-xl bg-muted/50 p-1.5">
                 {entry.payments.map((p) => (
                   <div
                     key={p.id}
@@ -666,27 +653,26 @@ function EntryCard({
             )}
 
             {!isPaid && (
-              <div className="flex gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 flex-1 text-xs"
-                  onClick={onAddPayment}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add payment
-                </Button>
+              <div className="flex gap-2 pt-0.5">
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="h-7 flex-1 text-xs"
+                  className="h-9 flex-1 rounded-full"
+                  onClick={onAddPayment}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add payment
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 flex-1 rounded-full"
                   disabled={settling}
                   onClick={onSettleFull}
                 >
                   {settling ? (
-                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                    <CheckCircle2 className="mr-1 h-4 w-4" />
                   )}
                   Settle {fmtAmount(entry.outstanding_amount)}
                 </Button>
@@ -715,17 +701,18 @@ function EntryCard({
                   </button>
                 </CollapsibleTrigger>
               </div>
-              <Progress value={installmentProgress} className="h-1.5" />
+              <Progress value={installmentProgress} className="h-2" />
             </div>
 
             <CollapsibleContent>
-              <div className="mt-2 space-y-0.5 rounded-md bg-muted/40 p-1.5">
+              <div className="mt-2 space-y-0.5 rounded-xl bg-muted/50 p-1.5">
                 {entry.installments.map((inst, idx) => (
                   <label
                     key={inst.id}
-                    className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-background"
+                    className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-background"
                   >
                     <Checkbox
+                      className="h-[22px] w-[22px]"
                       checked={inst.paid}
                       onCheckedChange={(checked) =>
                         onToggleInstallment(inst.id, checked === true)
@@ -757,22 +744,15 @@ function EntryCard({
 }
 
 function StatusPill({ status }: { status: LedgerEntry["status"] }) {
-  const styles: Record<LedgerEntry["status"], string> = {
-    Paid: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-500",
-    Partial:
-      "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-500",
-    Outstanding:
-      "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-500",
+  const dot: Record<LedgerEntry["status"], string> = {
+    Paid: "bg-primary",
+    Partial: "bg-foreground/40",
+    Outstanding: "bg-muted-foreground",
   };
 
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "ml-auto px-1.5 py-0 text-[10px] font-semibold",
-        styles[status]
-      )}
-    >
+    <Badge className="ml-auto gap-1 px-2 py-0 text-[10px] font-medium">
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot[status])} />
       {status}
     </Badge>
   );
@@ -837,7 +817,7 @@ function PaymentDialog({
 
   return (
     <Dialog open={!!entry} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[95vw] sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Record payment</DialogTitle>
           <DialogDescription className="text-xs">

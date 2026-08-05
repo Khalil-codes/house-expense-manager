@@ -137,14 +137,14 @@ export function LoanForm({ onSubmit, onCancel }: LoanFormProps) {
             )}
           />
         </div>
-        <DialogFooter className="gap-2 pt-4">
+        <DialogFooter className="gap-1 pt-5">
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Loan
+            Create loan
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             className="w-full"
             disabled={isSubmitting}
             onClick={onCancel}

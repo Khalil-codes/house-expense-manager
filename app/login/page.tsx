@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Lock } from "lucide-react";
+import { Home, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -41,52 +39,61 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Lock className="h-6 w-6 text-primary" />
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
+      {/* Ambient background glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_40%_at_50%_0%,hsl(var(--primary)/0.14),transparent_70%)]"
+      />
+
+      <div className="relative w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
+            <Home className="h-7 w-7" />
           </div>
-          <CardTitle className="text-xl">House Expense Tracker</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+            House Expense Tracker
+          </h1>
+          <p className="mt-1.5 text-[15px] text-muted-foreground">
             Sign in to access your expenses
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                autoComplete="username"
-                required
-              />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              autoComplete="username"
+              required
+              className="h-12 w-full bg-transparent px-4 text-base outline-none placeholder:text-muted-foreground"
+            />
+            <div className="h-px bg-border/60" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+              required
+              className="h-12 w-full bg-transparent px-4 text-base outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 px-3 py-2 text-[13px] font-medium text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {error}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            {error && (
-              <p className="text-sm text-destructive text-center">{error}</p>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          )}
+
+          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+            {loading ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
