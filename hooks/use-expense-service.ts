@@ -40,6 +40,7 @@ import {
   updateFundingSource,
   deleteFundingSource,
   addFundingEntry,
+  updateFundingEntry,
   deleteFundingEntry,
 } from "@/lib/actions/funding";
 import { mergePayees } from "@/lib/actions/payees";
@@ -260,6 +261,15 @@ export function useExpenseService() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
   });
 
+  const updateFundingEntryMutation = useMutation({
+    mutationFn: ({
+      entryId,
+      ...data
+    }: CreateFundingEntryInput & { entryId: number }) =>
+      updateFundingEntry(entryId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
+  });
+
   const deleteFundingEntryMutation = useMutation({
     mutationFn: (entryId: number) => deleteFundingEntry(entryId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.fundingSources }),
@@ -354,6 +364,7 @@ export function useExpenseService() {
     updateFundingSource: updateFundingSourceMutation.mutateAsync,
     deleteFundingSource: deleteFundingSourceMutation.mutateAsync,
     addFundingEntry: addFundingEntryMutation.mutateAsync,
+    updateFundingEntry: updateFundingEntryMutation.mutateAsync,
     deleteFundingEntry: deleteFundingEntryMutation.mutateAsync,
 
     addExpense: addExpenseMutation.mutateAsync,

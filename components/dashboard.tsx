@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import {
   Layers,
   Users,
@@ -16,8 +17,14 @@ import {
   TrendingUp,
   Receipt,
   Landmark,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { useExpenseService } from "@/hooks/use-expense-service";
+import { useState } from "react";
+import {
+  useExpenseService,
+  type Expense,
+} from "@/hooks/use-expense-service";
 import { ExpenseChart } from "@/components/expense-chart";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 
@@ -278,6 +285,9 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Month expenses */}
+      <MonthExpenses expenses={expenses} />
+
       {/* Charts */}
       <div className="grid gap-3 md:grid-cols-2">
         <Card>
@@ -360,6 +370,100 @@ export default function Dashboard() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function MonthExpenses({ expenses }: { expenses: Expense[] }) {
+  const [offset, setOffset] = useState(0);
+  const base = new Date();
+  const view = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+  const key = monthKey(view);
+
+  const items = expenses
+    .filter((e) => monthKey(new Date(e.date)) === key)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const total = items.reduce((s, e) => s + e.amount, 0);
+  const label = view.toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Month expenses</CardTitle>
+            <CardDescription className="text-xs">{label}</CardDescription>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setOffset((o) => o - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setOffset((o) => Math.min(0, o + 1))}
+              disabled={offset >= 0}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-3">
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            No expenses this month.
+          </p>
+        ) : (
+          <>
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {items.length} expense{items.length === 1 ? "" : "s"}
+              </span>
+              <span className="font-semibold tabular-nums">{inr(total)}</span>
+            </div>
+            <div className="max-h-80 divide-y overflow-auto rounded-md border">
+              {items.map((e) => (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between gap-2 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium">
+                      {e.description}
+                    </p>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span>
+                        {new Date(e.date).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                      {e.area && (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5">
+                          {e.area}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold tabular-nums">
+                    {inr(e.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

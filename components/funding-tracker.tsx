@@ -84,6 +84,7 @@ export default function FundingTracker() {
     updateFundingSource,
     deleteFundingSource,
     addFundingEntry,
+    updateFundingEntry,
     deleteFundingEntry,
   } = useExpenseService();
 
@@ -94,7 +95,10 @@ export default function FundingTracker() {
   const totalReceived = active.reduce((s, f) => s + f.received, 0);
   const totalInTransit = active.reduce((s, f) => s + f.in_transit, 0);
   const totalDeployed = active.reduce((s, f) => s + f.outflows, 0);
-  const totalBalance = active.reduce((s, f) => s + f.balance, 0);
+  // Cash is an untracked pool; its balance/received aren't meaningful.
+  const totalBalance = active
+    .filter((s) => s.kind !== "cash")
+    .reduce((s, f) => s + f.balance, 0);
   const expectedTotal = active.reduce((s, f) => s + (f.total_value ?? 0), 0);
   const yetToReceive = active.reduce((s, f) => s + (f.remaining ?? 0), 0);
   const deployedRows = [...active]
@@ -248,6 +252,9 @@ export default function FundingTracker() {
               onAddEntry={(v) =>
                 addFundingEntry({ sourceId: source.id, ...v })
               }
+              onUpdateEntry={(entryId, v) =>
+                updateFundingEntry({ entryId, ...v })
+              }
               onDeleteEntry={deleteFundingEntry}
             />
           ))}
@@ -345,16 +352,19 @@ function FundingSourceCard({
   onEdit,
   onDelete,
   onAddEntry,
+  onUpdateEntry,
   onDeleteEntry,
 }: {
   source: FundingSource;
   onEdit: () => void;
   onDelete: () => void;
   onAddEntry: (v: FundingEntryFormValues) => Promise<void>;
+  onUpdateEntry: (entryId: number, v: FundingEntryFormValues) => Promise<void>;
   onDeleteEntry: (entryId: number) => Promise<void>;
 }) {
   const [showLedger, setShowLedger] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [editEntry, setEditEntry] = useState<FundingLedgerItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   return (
@@ -412,18 +422,29 @@ function FundingSourceCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-1.5">
-        {source.total_value != null && (
-          <Stat label="Total value" value={inr(source.total_value)} />
+        {source.kind === "cash" ? (
+          <>
+            <Stat label="Deployed" value={inr(source.outflows)} strong />
+            <p className="text-[10px] text-muted-foreground">
+              Cash is treated as a pool — balance isn&apos;t tracked.
+            </p>
+          </>
+        ) : (
+          <>
+            {source.total_value != null && (
+              <Stat label="Total value" value={inr(source.total_value)} />
+            )}
+            <Stat label="Received" value={inr(source.received)} />
+            {source.in_transit > 0 && (
+              <Stat label="In transit" value={inr(source.in_transit)} />
+            )}
+            {source.remaining != null && (
+              <Stat label="Yet to receive" value={inr(source.remaining)} />
+            )}
+            <Stat label="Spent from source" value={inr(source.outflows)} />
+            <Stat label="Balance" value={inr(source.balance)} strong />
+          </>
         )}
-        <Stat label="Received" value={inr(source.received)} />
-        {source.in_transit > 0 && (
-          <Stat label="In transit" value={inr(source.in_transit)} />
-        )}
-        {source.remaining != null && (
-          <Stat label="Yet to receive" value={inr(source.remaining)} />
-        )}
-        <Stat label="Spent from source" value={inr(source.outflows)} />
-        <Stat label="Balance" value={inr(source.balance)} strong />
 
         <div className="flex items-center gap-2 pt-2">
           <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
@@ -466,18 +487,49 @@ function FundingSourceCard({
         </div>
 
         {showLedger && (
-          <LedgerList items={source.ledger} onDeleteEntry={onDeleteEntry} />
+          <LedgerList
+            items={source.ledger}
+            onEditEntry={setEditEntry}
+            onDeleteEntry={onDeleteEntry}
+          />
         )}
       </CardContent>
+
+      <Dialog
+        open={!!editEntry}
+        onOpenChange={(open) => !open && setEditEntry(null)}
+      >
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Entry — {source.name}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Update this receipt or payout.
+            </DialogDescription>
+          </DialogHeader>
+          {editEntry && (
+            <FundingEntryForm
+              entry={editEntry}
+              onSubmit={async (v) => {
+                const entryId = parseInt(editEntry.id.replace("entry-", ""), 10);
+                await onUpdateEntry(entryId, v);
+                setEditEntry(null);
+              }}
+              onCancel={() => setEditEntry(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
 
 function LedgerList({
   items,
+  onEditEntry,
   onDeleteEntry,
 }: {
   items: FundingLedgerItem[];
+  onEditEntry: (item: FundingLedgerItem) => void;
   onDeleteEntry: (entryId: number) => Promise<void>;
 }) {
   if (items.length === 0) {
@@ -526,16 +578,26 @@ function LedgerList({
                 {inr(item.amount)}
               </span>
               {isManual && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-destructive hover:text-destructive"
-                  onClick={() =>
-                    onDeleteEntry(parseInt(item.id.replace("entry-", "")))
-                  }
-                >
-                  <Trash className="h-3 w-3" />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => onEditEntry(item)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-destructive hover:text-destructive"
+                    onClick={() =>
+                      onDeleteEntry(parseInt(item.id.replace("entry-", "")))
+                    }
+                  >
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -680,23 +742,38 @@ function FundingSourceForm({
 }
 
 function FundingEntryForm({
+  entry,
   onSubmit,
   onCancel,
 }: {
+  entry?: FundingLedgerItem;
   onSubmit: (values: FundingEntryFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
   const form = useForm<FundingEntryFormValues>({
     resolver: zodResolver(fundingEntryFormSchema),
-    defaultValues: {
-      direction: "in",
-      amount: 0,
-      title: "",
-      date: new Date().toISOString().split("T")[0],
-      status: "received",
-      method: null,
-      notes: null,
-    },
+    defaultValues: entry
+      ? {
+          direction: entry.direction,
+          amount: entry.amount,
+          title: entry.title,
+          date: entry.date,
+          status:
+            entry.direction === "in"
+              ? (entry.status as FundingEntryFormValues["status"]) ?? "received"
+              : null,
+          method: entry.method,
+          notes: entry.notes,
+        }
+      : {
+          direction: "in",
+          amount: 0,
+          title: "",
+          date: new Date().toISOString().split("T")[0],
+          status: "received",
+          method: null,
+          notes: null,
+        },
   });
 
   const direction = form.watch("direction");
@@ -854,7 +931,7 @@ function FundingEntryForm({
         <DialogFooter className="gap-2">
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Add entry
+            {entry ? "Update entry" : "Add entry"}
           </Button>
           <Button
             type="button"

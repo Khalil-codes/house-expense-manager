@@ -4,7 +4,6 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import {
   PieChart,
-  BarChart,
   Home,
   Building,
   Landmark,
@@ -25,7 +24,6 @@ import Dashboard from "@/components/dashboard";
 import LoanTracker from "@/components/loan-tracker";
 import ConstructionExpenses from "@/components/construction-expenses";
 import PropertyExpenses from "@/components/property-expenses";
-import MonthlyAnalytics from "@/components/monthly-analytics";
 import LedgerTracker from "@/components/ledger-tracker";
 import FundingTracker from "@/components/funding-tracker";
 import Settings from "@/components/settings";
@@ -41,13 +39,10 @@ import { toast } from "sonner";
 
 const TABS = [
   { value: "dashboard", label: "Home", icon: PieChart },
-  { value: "analytics", label: "Analytics", icon: BarChart },
   { value: "loan", label: "Loans", icon: Landmark },
   { value: "construction", label: "Build", icon: Building },
   { value: "property", label: "Property", icon: Home },
   { value: "funding", label: "Funding", icon: Wallet },
-  { value: "ledger", label: "Ledger", icon: HandCoins },
-  { value: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
 export default function HouseExpenseTracker() {
@@ -120,6 +115,15 @@ export default function HouseExpenseTracker() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setActiveTab("ledger")}>
+                  <HandCoins className="h-4 w-4 mr-2" />
+                  Ledger
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab("settings")}>
+                  <SettingsIcon className="h-4 w-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleExport}>
                   <Download className="h-4 w-4 mr-2" />
                   Export Data
@@ -138,7 +142,6 @@ export default function HouseExpenseTracker() {
       {/* Page content */}
       <main className="px-3 py-4">
         {activeTab === "dashboard" && <Dashboard />}
-        {activeTab === "analytics" && <MonthlyAnalytics />}
         {activeTab === "loan" && <LoanTracker />}
         {activeTab === "construction" && <ConstructionExpenses />}
         {activeTab === "property" && <PropertyExpenses />}

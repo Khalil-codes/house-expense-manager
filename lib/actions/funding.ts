@@ -214,6 +214,25 @@ export async function addFundingEntry(
   });
 }
 
+export async function updateFundingEntry(
+  entryId: number,
+  input: CreateFundingEntryInput
+): Promise<void> {
+  const data = createFundingEntrySchema.parse(input);
+  await db
+    .update(fundingEntries)
+    .set({
+      direction: data.direction,
+      amount: data.amount,
+      title: data.title,
+      date: data.date,
+      status: data.direction === "in" ? data.status : null,
+      method: data.method,
+      notes: data.notes,
+    })
+    .where(eq(fundingEntries.id, entryId));
+}
+
 export async function deleteFundingEntry(entryId: number): Promise<void> {
   await db.delete(fundingEntries).where(eq(fundingEntries.id, entryId));
 }
